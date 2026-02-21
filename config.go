@@ -9,6 +9,15 @@ const (
 	ScheduleCalendar ScheduleType = "calendar"
 )
 
+// ProcessType はプロセスの優先度を表す
+type ProcessType string
+
+const (
+	ProcessStandard    ProcessType = "Standard"
+	ProcessBackground  ProcessType = "Background"
+	ProcessInteractive ProcessType = "Interactive"
+)
+
 // KeepAliveType はKeepAliveの種別を表す
 type KeepAliveType string
 
@@ -23,6 +32,7 @@ type Config struct {
 	Label            string
 	Program          string
 	WorkingDirectory string
+	ProcessType      ProcessType
 	RunAtLoad        bool
 	KeepAlive        KeepAliveType
 	ScheduleType     ScheduleType
