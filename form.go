@@ -23,6 +23,7 @@ func RunForm() (*Config, error) {
 	var enableLog bool
 	var intervalStr string
 	var minuteStr, hourStr, dayStr, monthStr, weekdayStr string
+	var enableEnvVars bool
 	var envVarsStr string
 
 	theme := formTheme()
@@ -51,33 +52,30 @@ func RunForm() (*Config, error) {
 				Title("WorkingDirectory").
 				Description("作業ディレクトリ（省略可）").
 				Value(&c.WorkingDirectory),
+
+			huh.NewConfirm().
+				Title("環境変数").
+				Description("環境変数を設定する").
+				Value(&enableEnvVars),
 		),
 
-		// グループ2: 実行条件
+		// グループ1.5: 環境変数入力（条件付き）
 		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("ProcessType").
-				Description("プロセスの優先度").
-				Options(
-					huh.NewOption("Standard（デフォルト）", "Standard"),
-					huh.NewOption("Background（リソース制限あり）", "Background"),
-					huh.NewOption("Interactive（リソース制限なし）", "Interactive"),
-				).
-				Value(&processType),
+			huh.NewText().
+				Title("環境変数").
+				Description("KEY=VALUE 形式で1行ずつ入力").
+				Lines(8).
+				Value(&envVarsStr),
+		).WithHideFunc(func() bool {
+			return !enableEnvVars
+		}),
 
+		// グループ2: スケジュール
+		huh.NewGroup(
 			huh.NewConfirm().
 				Title("RunAtLoad").
 				Description("ロード時に即実行する").
 				Value(&c.RunAtLoad),
-
-			huh.NewSelect[string]().
-				Title("KeepAlive").
-				Options(
-					huh.NewOption("しない", "none"),
-					huh.NewOption("常に再起動", "always"),
-					huh.NewOption("異常終了時のみ再起動", "on_failure"),
-				).
-				Value(&keepAlive),
 
 			huh.NewSelect[string]().
 				Title("スケジュール").
@@ -139,13 +137,26 @@ func RunForm() (*Config, error) {
 			return scheduleType != "calendar"
 		}),
 
-		// グループ3: 環境変数
+		// グループ3: プロセス設定
 		huh.NewGroup(
-			huh.NewText().
-				Title("環境変数").
-				Description("KEY=VALUE 形式で1行ずつ入力（省略可）").
-				Lines(4).
-				Value(&envVarsStr),
+			huh.NewSelect[string]().
+				Title("ProcessType").
+				Description("プロセスの優先度").
+				Options(
+					huh.NewOption("Standard（デフォルト）", "Standard"),
+					huh.NewOption("Background（リソース制限あり）", "Background"),
+					huh.NewOption("Interactive（リソース制限なし）", "Interactive"),
+				).
+				Value(&processType),
+
+			huh.NewSelect[string]().
+				Title("KeepAlive").
+				Options(
+					huh.NewOption("しない", "none"),
+					huh.NewOption("常に再起動", "always"),
+					huh.NewOption("異常終了時のみ再起動", "on_failure"),
+				).
+				Value(&keepAlive),
 		),
 
 		// グループ4: ログ出力
@@ -212,7 +223,9 @@ func RunForm() (*Config, error) {
 			c.ScheduleType = ScheduleNone
 		}
 	}
-	c.EnvironmentVars = parseEnvVars(envVarsStr)
+	if enableEnvVars {
+		c.EnvironmentVars = parseEnvVars(envVarsStr)
+	}
 	if enableLog && c.LogFilePath == "" {
 		home, _ := os.UserHomeDir()
 		c.LogFilePath = filepath.Join(home, "Library", "Logs", c.Label+".log")
