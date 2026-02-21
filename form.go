@@ -17,6 +17,7 @@ func RunForm() (*Config, error) {
 		RunAtLoad: true,
 	}
 
+	var processType string
 	var keepAlive string
 	var scheduleType string
 	var enableLog bool
@@ -49,6 +50,16 @@ func RunForm() (*Config, error) {
 
 		// グループ2: 実行条件
 		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("ProcessType").
+				Description("プロセスの優先度").
+				Options(
+					huh.NewOption("Standard（デフォルト）", "Standard"),
+					huh.NewOption("Background（リソース制限あり）", "Background"),
+					huh.NewOption("Interactive（リソース制限なし）", "Interactive"),
+				).
+				Value(&processType),
+
 			huh.NewConfirm().
 				Title("RunAtLoad").
 				Description("ロード時に即実行する").
@@ -158,6 +169,7 @@ func RunForm() (*Config, error) {
 	}
 
 	// ローカル変数をConfigに反映
+	c.ProcessType = ProcessType(processType)
 	c.KeepAlive = KeepAliveType(keepAlive)
 	c.ScheduleType = ScheduleType(scheduleType)
 	if scheduleType == "interval" && intervalStr != "" {

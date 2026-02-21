@@ -188,6 +188,47 @@ func TestGeneratePlist_KeepAliveNone(t *testing.T) {
 	mustNotContain(t, plist, "KeepAlive")
 }
 
+func TestGeneratePlist_ProcessTypeBackground(t *testing.T) {
+	c := Config{
+		Label:       "com.user.test",
+		Program:     "/usr/local/bin/test",
+		ProcessType: ProcessBackground,
+	}
+	plist, err := GeneratePlist(&c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, plist, "<key>ProcessType</key>")
+	mustContain(t, plist, "<string>Background</string>")
+}
+
+func TestGeneratePlist_ProcessTypeInteractive(t *testing.T) {
+	c := Config{
+		Label:       "com.user.test",
+		Program:     "/usr/local/bin/test",
+		ProcessType: ProcessInteractive,
+	}
+	plist, err := GeneratePlist(&c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, plist, "<key>ProcessType</key>")
+	mustContain(t, plist, "<string>Interactive</string>")
+}
+
+func TestGeneratePlist_ProcessTypeStandard(t *testing.T) {
+	c := Config{
+		Label:       "com.user.test",
+		Program:     "/usr/local/bin/test",
+		ProcessType: ProcessStandard,
+	}
+	plist, err := GeneratePlist(&c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustNotContain(t, plist, "ProcessType")
+}
+
 func TestGeneratePlist_WithEnvVars(t *testing.T) {
 	c := Config{
 		Label:   "com.user.test",

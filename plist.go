@@ -21,6 +21,11 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 		<string>{{.}}</string>
 {{- end}}
 	</array>
+{{- if .ProcessType}}
+
+	<key>ProcessType</key>
+	<string>{{.ProcessType}}</string>
+{{- end}}
 {{- if .WorkingDirectory}}
 
 	<key>WorkingDirectory</key>
@@ -101,6 +106,7 @@ type plistData struct {
 	Label            string
 	ProgramArgs      []string
 	WorkingDirectory string
+	ProcessType      ProcessType
 	RunAtLoad        bool
 	KeepAlive        KeepAliveType
 	StartInterval    int
@@ -124,6 +130,10 @@ func buildPlistData(c *Config) plistData {
 		RunAtLoad:        c.RunAtLoad,
 		KeepAlive:        c.KeepAlive,
 		StandardOutPath:  c.LogFilePath,
+	}
+
+	if c.ProcessType != ProcessStandard {
+		data.ProcessType = c.ProcessType
 	}
 
 	if c.ScheduleType == ScheduleInterval {
