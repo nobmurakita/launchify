@@ -78,9 +78,10 @@ func TestParseProgramArgs(t *testing.T) {
 
 func TestGeneratePlist_WithFileLog(t *testing.T) {
 	c := Config{
-		Label:       "com.user.test",
-		Program:     "/usr/local/bin/test",
-		LogFilePath: "/tmp/test.log",
+		Label:      "com.user.test",
+		Program:    "/usr/local/bin/test",
+		StdoutPath: "/tmp/test.log",
+		StderrPath: "/tmp/test.log",
 	}
 	plist, err := GeneratePlist(&c)
 	if err != nil {
@@ -89,6 +90,23 @@ func TestGeneratePlist_WithFileLog(t *testing.T) {
 	mustContain(t, plist, "<key>StandardOutPath</key>")
 	mustContain(t, plist, "<key>StandardErrorPath</key>")
 	mustContain(t, plist, "<string>/tmp/test.log</string>")
+}
+
+func TestGeneratePlist_WithSeparateLogPaths(t *testing.T) {
+	c := Config{
+		Label:      "com.user.test",
+		Program:    "/usr/local/bin/test",
+		StdoutPath: "/tmp/stdout.log",
+		StderrPath: "/tmp/stderr.log",
+	}
+	plist, err := GeneratePlist(&c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, plist, "<key>StandardOutPath</key>")
+	mustContain(t, plist, "<string>/tmp/stdout.log</string>")
+	mustContain(t, plist, "<key>StandardErrorPath</key>")
+	mustContain(t, plist, "<string>/tmp/stderr.log</string>")
 }
 
 func TestGeneratePlist_WithInterval(t *testing.T) {

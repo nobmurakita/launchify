@@ -39,5 +39,6 @@ type Config struct {
 	StartInterval    int
 	Calendar         CalendarInterval
 	EnvironmentVars  map[string]string
-	LogFilePath      string
+	StdoutPath       string
+	StderrPath       string
 }

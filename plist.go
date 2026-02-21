@@ -93,9 +93,11 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 
 	<key>StandardOutPath</key>
 	<string>{{.StandardOutPath}}</string>
+{{- end}}
+{{- if .StandardErrorPath}}
 
 	<key>StandardErrorPath</key>
-	<string>{{.StandardOutPath}}</string>
+	<string>{{.StandardErrorPath}}</string>
 {{- end}}
 </dict>
 </plist>
@@ -112,7 +114,8 @@ type plistData struct {
 	StartInterval    int
 	CalendarInterval *CalendarInterval
 	EnvironmentVars  map[string]string
-	StandardOutPath  string
+	StandardOutPath   string
+	StandardErrorPath string
 }
 
 // GeneratePlist はConfigからplist XML文字列を生成する
@@ -129,7 +132,8 @@ func buildPlistData(c *Config) plistData {
 		WorkingDirectory: c.WorkingDirectory,
 		RunAtLoad:        c.RunAtLoad,
 		KeepAlive:        c.KeepAlive,
-		StandardOutPath:  c.LogFilePath,
+		StandardOutPath:   c.StdoutPath,
+		StandardErrorPath: c.StderrPath,
 	}
 
 	if c.ProcessType != ProcessStandard {
