@@ -20,7 +20,7 @@ func RunForm() (*Config, error) {
 	var processType string
 	var keepAlive string
 	var scheduleType string
-	var enableLog bool
+	var logType string
 	var intervalStr string
 	var minuteStr, hourStr, dayStr, monthStr, weekdayStr string
 	var enableEnvVars bool
@@ -161,29 +161,56 @@ func RunForm() (*Config, error) {
 
 		// グループ4: ログ出力
 		huh.NewGroup(
-			huh.NewConfirm().
+			huh.NewSelect[string]().
 				Title("ログファイル出力").
-				Description("stdout/stderrをファイルに出力する").
-				Value(&enableLog),
+				Options(
+					huh.NewOption("出力しない", "none"),
+					huh.NewOption("stdout + stderr", "both"),
+					huh.NewOption("stdoutのみ", "stdout"),
+					huh.NewOption("stderrのみ", "stderr"),
+				).
+				Value(&logType),
 		),
 
-		// グループ4.5: ログファイルパス（条件付き）
+		// グループ4.5: stdout+stderrパス（条件付き）
 		huh.NewGroup(
 			huh.NewInput().
-				Title("ログファイルパス").
+				Title("StandardOutPath").
 				DescriptionFunc(func() string {
-					label := c.Label
-					if label == "" {
-						fields := strings.Fields(c.Program)
-						if len(fields) > 0 {
-							label = filepath.Base(fields[0])
-						}
-					}
-					return "空欄の場合: ~/Library/Logs/" + label + ".log"
+					return "stdout出力先（空欄の場合: ~/Library/Logs/" + resolveLabel(c) + ".log）"
 				}, c).
-				Value(&c.LogFilePath),
+				Value(&c.StdoutPath),
+
+			huh.NewInput().
+				Title("StandardErrorPath").
+				Description("stderr出力先（空欄の場合: stdoutと同じ）").
+				Value(&c.StderrPath),
 		).WithHideFunc(func() bool {
-			return !enableLog
+			return logType != "both"
+		}),
+
+		// グループ4.6: stdoutのみパス（条件付き）
+		huh.NewGroup(
+			huh.NewInput().
+				Title("StandardOutPath").
+				DescriptionFunc(func() string {
+					return "stdout出力先（空欄の場合: ~/Library/Logs/" + resolveLabel(c) + ".log）"
+				}, c).
+				Value(&c.StdoutPath),
+		).WithHideFunc(func() bool {
+			return logType != "stdout"
+		}),
+
+		// グループ4.7: stderrのみパス（条件付き）
+		huh.NewGroup(
+			huh.NewInput().
+				Title("StandardErrorPath").
+				DescriptionFunc(func() string {
+					return "stderr出力先（空欄の場合: ~/Library/Logs/" + resolveLabel(c) + ".log）"
+				}, c).
+				Value(&c.StderrPath),
+		).WithHideFunc(func() bool {
+			return logType != "stderr"
 		}),
 	)
 
@@ -226,13 +253,34 @@ func RunForm() (*Config, error) {
 	if enableEnvVars {
 		c.EnvironmentVars = parseEnvVars(envVarsStr)
 	}
-	if enableLog && c.LogFilePath == "" {
+	defaultLogPath := func() string {
 		home, _ := os.UserHomeDir()
-		c.LogFilePath = filepath.Join(home, "Library", "Logs", c.Label+".log")
+		return filepath.Join(home, "Library", "Logs", c.Label+".log")
 	}
-	if !enableLog {
-		c.LogFilePath = ""
+	switch logType {
+	case "both":
+		if c.StdoutPath == "" {
+			c.StdoutPath = defaultLogPath()
+		}
+		if c.StderrPath == "" {
+			c.StderrPath = c.StdoutPath
+		}
+	case "stdout":
+		if c.StdoutPath == "" {
+			c.StdoutPath = defaultLogPath()
+		}
+		c.StderrPath = ""
+	case "stderr":
+		c.StdoutPath = ""
+		if c.StderrPath == "" {
+			c.StderrPath = defaultLogPath()
+		}
+	default:
+		c.StdoutPath = ""
+		c.StderrPath = ""
 	}
+	c.StdoutPath = toAbsPath(c.StdoutPath)
+	c.StderrPath = toAbsPath(c.StderrPath)
 
 	return c, nil
 }
@@ -261,6 +309,31 @@ func formTheme() *huh.Theme {
 		Foreground(dimGray)
 
 	return t
+}
+
+// toAbsPath は~展開と絶対パス変換を行う。空文字列はそのまま返す。
+func toAbsPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "~/") {
+		home, _ := os.UserHomeDir()
+		path = filepath.Join(home, path[2:])
+	}
+	path, _ = filepath.Abs(path)
+	return path
+}
+
+// resolveLabel はConfigからLabel（未入力ならProgramのベース名）を返す
+func resolveLabel(c *Config) string {
+	if c.Label != "" {
+		return c.Label
+	}
+	fields := strings.Fields(c.Program)
+	if len(fields) > 0 {
+		return filepath.Base(fields[0])
+	}
+	return ""
 }
 
 // parseEnvVars は "KEY=VALUE\nKEY2=VALUE2" 形式の文字列をmapに変換する
