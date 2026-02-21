@@ -31,16 +31,21 @@ func RunForm() (*Config, error) {
 		// グループ1: 基本設定
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Label").
-				Description("LaunchAgentの識別子（例: com.user.mytool）").
-				Value(&c.Label).
-				Validate(huh.ValidateNotEmpty()),
-
-			huh.NewInput().
 				Title("Program").
 				Description("実行するコマンド").
 				Value(&c.Program).
 				Validate(huh.ValidateNotEmpty()),
+
+			huh.NewInput().
+				Title("Label").
+				Description("LaunchAgentの識別子（例: com.user.mytool）").
+				PlaceholderFunc(func() string {
+					if c.Program == "" {
+						return ""
+					}
+					return filepath.Base(strings.Fields(c.Program)[0])
+				}, &c.Program).
+				Value(&c.Label),
 
 			huh.NewInput().
 				Title("WorkingDirectory").
@@ -156,8 +161,15 @@ func RunForm() (*Config, error) {
 			huh.NewInput().
 				Title("ログファイルパス").
 				DescriptionFunc(func() string {
-					return "空欄の場合: ~/Library/Logs/" + c.Label + ".log"
-				}, &c.Label).
+					label := c.Label
+					if label == "" {
+						fields := strings.Fields(c.Program)
+						if len(fields) > 0 {
+							label = filepath.Base(fields[0])
+						}
+					}
+					return "空欄の場合: ~/Library/Logs/" + label + ".log"
+				}, c).
 				Value(&c.LogFilePath),
 		).WithHideFunc(func() bool {
 			return !enableLog
@@ -166,6 +178,14 @@ func RunForm() (*Config, error) {
 
 	if err := form.WithTheme(theme).Run(); err != nil {
 		return nil, err
+	}
+
+	// Labelが空欄ならProgramのベース名を使用
+	if c.Label == "" {
+		fields := strings.Fields(c.Program)
+		if len(fields) > 0 {
+			c.Label = filepath.Base(fields[0])
+		}
 	}
 
 	// ローカル変数をConfigに反映
