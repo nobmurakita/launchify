@@ -90,45 +90,40 @@ func (m appModel) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m appModel) submitForm() (tea.Model, tea.Cmd) {
-	m.form.errMsg = "" // 前回のエラーをクリア
+	m.form.setError("")
 
 	if err := applyFormValues(m.config, m.state); err != nil {
-		m.form.errMsg = err.Error()
+		m.form.setError(err.Error())
 		return m, nil
 	}
 
-	// プログラムのパス解決
 	resolved, err := resolveProgram(m.config.Program)
 	if err != nil {
-		m.form.errMsg = err.Error()
+		m.form.setError(err.Error())
 		return m, nil
 	}
 	m.config.Program = resolved
 
-	// plist生成
 	plist, err := GeneratePlist(m.config)
 	if err != nil {
-		m.form.errMsg = fmt.Sprintf("plist生成エラー: %v", err)
+		m.form.setError(fmt.Sprintf("plist生成エラー: %v", err))
 		return m, nil
 	}
 	m.plist = plist
 
 	plistPath, err := PlistPath(m.config.Label)
 	if err != nil {
-		m.form.errMsg = fmt.Sprintf("plistパス解決エラー: %v", err)
+		m.form.setError(fmt.Sprintf("plistパス解決エラー: %v", err))
 		return m, nil
 	}
 
 	if m.state.directInstall {
-		// インストール直接実行
 		m.result = appResultInstall
 		return m, tea.Quit
 	}
 
-	// プレビュー画面へ遷移
 	m.phase = phasePreview
 	m.preview = newPreviewModel(plist, plistPath)
-	// WindowSizeMsgを送信してviewportを初期化
 	return m, func() tea.Msg {
 		return tea.WindowSizeMsg{Width: m.width, Height: m.height}
 	}
