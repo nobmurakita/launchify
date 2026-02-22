@@ -34,8 +34,8 @@ func TestPreviewModel_EnterReturnsInstall(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected previewDoneMsg, got %T", msg)
 	}
-	if dm.result != resultInstall {
-		t.Errorf("result = %v, want resultInstall", dm.result)
+	if dm.result != previewResultInstall {
+		t.Errorf("result = %v, want previewResultInstall", dm.result)
 	}
 }
 
@@ -52,8 +52,8 @@ func TestPreviewModel_EscReturnsBack(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected previewDoneMsg, got %T", msg)
 	}
-	if dm.result != resultBack {
-		t.Errorf("result = %v, want resultBack", dm.result)
+	if dm.result != previewResultBack {
+		t.Errorf("result = %v, want previewResultBack", dm.result)
 	}
 }
 
@@ -70,8 +70,8 @@ func TestPreviewModel_QReturnsQuit(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected previewDoneMsg, got %T", msg)
 	}
-	if dm.result != resultQuit {
-		t.Errorf("result = %v, want resultQuit", dm.result)
+	if dm.result != previewResultQuit {
+		t.Errorf("result = %v, want previewResultQuit", dm.result)
 	}
 }
 

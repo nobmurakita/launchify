@@ -36,11 +36,15 @@ func Install(label, plistXML string, w io.Writer) error {
 		return err
 	}
 
-	// 既存ファイルがあれば、中のラベルに関係なくアンロード（エラーは無視）
+	// 既存ファイルがあれば、中のラベルに関係なくアンロード
+	// サービスが実行されていない場合などは失敗するが、致命的ではないためログのみ出力
 	if _, err := os.Stat(path); err == nil {
 		cmd := exec.Command("launchctl", "unload", path)
-		_ = cmd.Run()
-		fmt.Fprintln(w, "既存サービスをアンロードしました")
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(w, "既存サービスのアンロードに失敗（無視して続行）: %v\n", err)
+		} else {
+			fmt.Fprintln(w, "既存サービスをアンロードしました")
+		}
 	}
 
 	dir := filepath.Dir(path)

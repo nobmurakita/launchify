@@ -16,6 +16,9 @@ const envVarsTextareaHeight = 8
 // defaultLogPathFormat はログファイルのデフォルトパス書式
 const defaultLogPathFormat = "~/Library/Logs/%s.log"
 
+// textareaPadding はテキストエリアの左右パディング幅（プロンプト + マージン分）
+const textareaPadding = 4
+
 // カレンダーフィールドのインデックス
 const (
 	calMonth      = 0
@@ -92,13 +95,19 @@ func newDetailModel(kind detailKind, c *Config, s *formState, width, height int)
 	return m
 }
 
-func buildIntervalFields(s *formState) ([]textinput.Model, []string) {
+// newStyledTextInput は共通スタイル設定済みのtextinputを生成する
+func newStyledTextInput(placeholder, value string) textinput.Model {
 	ti := textinput.New()
-	ti.Placeholder = "例: 300"
-	ti.SetValue(s.intervalStr)
-	ti.Focus()
+	ti.Placeholder = placeholder
+	ti.SetValue(value)
 	ti.Prompt = fieldPrompt
 	ti.Cursor.Style = focusedCursorStyle
+	return ti
+}
+
+func buildIntervalFields(s *formState) ([]textinput.Model, []string) {
+	ti := newStyledTextInput("例: 300", s.intervalStr)
+	ti.Focus()
 	return []textinput.Model{ti}, []string{"StartInterval（秒）"}
 }
 
@@ -119,15 +128,10 @@ func buildCalendarFields(s *formState) ([]textinput.Model, []string) {
 	fields := make([]textinput.Model, len(defs))
 	labels := make([]string, len(defs))
 	for i, d := range defs {
-		ti := textinput.New()
-		ti.Placeholder = d.placeholder
-		ti.SetValue(d.value)
-		ti.Prompt = fieldPrompt
-		ti.Cursor.Style = focusedCursorStyle
+		fields[i] = newStyledTextInput(d.placeholder, d.value)
 		if i == 0 {
-			ti.Focus()
+			fields[i].Focus()
 		}
-		fields[i] = ti
 		labels[i] = d.label
 	}
 	return fields, labels
@@ -138,12 +142,8 @@ func buildLogPathField(currentPath, label string) ([]textinput.Model, []string) 
 	if val == "" {
 		val = fmt.Sprintf(defaultLogPathFormat, label)
 	}
-	ti := textinput.New()
-	ti.Placeholder = "ファイルパス"
-	ti.SetValue(val)
+	ti := newStyledTextInput("ファイルパス", val)
 	ti.Focus()
-	ti.Prompt = fieldPrompt
-	ti.Cursor.Style = focusedCursorStyle
 	return []textinput.Model{ti}, []string{"出力先パス"}
 }
 
@@ -153,8 +153,8 @@ func buildEnvVarsTextarea(s *formState, width int) textarea.Model {
 	ta.SetValue(s.envVarsStr)
 	ta.Focus()
 	ta.ShowLineNumbers = false
-	if width > 4 {
-		ta.SetWidth(width - 4)
+	if width > textareaPadding {
+		ta.SetWidth(width - textareaPadding)
 	}
 	ta.SetHeight(envVarsTextareaHeight)
 	ta.Prompt = fieldPrompt
@@ -176,8 +176,8 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		if m.kind == detailEnvVars && m.width > 4 {
-			m.textarea.SetWidth(m.width - 4)
+		if m.kind == detailEnvVars && m.width > textareaPadding {
+			m.textarea.SetWidth(m.width - textareaPadding)
 		}
 		return m, nil
 
@@ -219,7 +219,7 @@ func (m detailModel) handleFieldsKey(msg tea.KeyMsg) (detailModel, tea.Cmd) {
 	case "tab", "enter":
 		// 次のフィールドへ移動、最後なら確定
 		if m.focused >= len(m.fields)-1 {
-			m.applyFieldValues()
+			m.syncFieldsToState()
 			return m, func() tea.Msg { return detailDoneMsg{cancelled: false} }
 		}
 		m.fields[m.focused].Blur()
@@ -254,8 +254,8 @@ func (m detailModel) updateFocused(msg tea.Msg) (detailModel, tea.Cmd) {
 	return m, nil
 }
 
-// applyFieldValues はフィールドの値をformStateに書き戻す
-func (m *detailModel) applyFieldValues() {
+// syncFieldsToState はフィールドの入力値をformStateに書き戻す
+func (m *detailModel) syncFieldsToState() {
 	switch m.kind {
 	case detailInterval:
 		if len(m.fields) > 0 {
