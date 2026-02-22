@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"text/template"
 
 	"github.com/google/shlex"
@@ -13,12 +14,12 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>{{.Label}}</string>
+	<string>{{.Label | xmlEscape}}</string>
 
 	<key>ProgramArguments</key>
 	<array>
 {{- range .ProgramArgs}}
-		<string>{{.}}</string>
+		<string>{{. | xmlEscape}}</string>
 {{- end}}
 	</array>
 {{- if .ProcessType}}
@@ -29,7 +30,7 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 {{- if .WorkingDirectory}}
 
 	<key>WorkingDirectory</key>
-	<string>{{.WorkingDirectory}}</string>
+	<string>{{.WorkingDirectory | xmlEscape}}</string>
 {{- end}}
 {{- if .RunAtLoad}}
 
@@ -84,20 +85,20 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 	<key>EnvironmentVariables</key>
 	<dict>
 {{- range $key, $val := .EnvironmentVars}}
-		<key>{{$key}}</key>
-		<string>{{$val}}</string>
+		<key>{{$key | xmlEscape}}</key>
+		<string>{{$val | xmlEscape}}</string>
 {{- end}}
 	</dict>
 {{- end}}
 {{- if .StandardOutPath}}
 
 	<key>StandardOutPath</key>
-	<string>{{.StandardOutPath}}</string>
+	<string>{{.StandardOutPath | xmlEscape}}</string>
 {{- end}}
 {{- if .StandardErrorPath}}
 
 	<key>StandardErrorPath</key>
-	<string>{{.StandardErrorPath}}</string>
+	<string>{{.StandardErrorPath | xmlEscape}}</string>
 {{- end}}
 </dict>
 </plist>
@@ -158,8 +159,9 @@ func buildPlistData(c *Config) plistData {
 // renderPlist はplistDataからXML文字列をレンダリングする
 func renderPlist(data plistData) (string, error) {
 	funcMap := template.FuncMap{
-		"deref":  func(p *int) int { return *p },
-		"notNil": func(p *int) bool { return p != nil },
+		"deref":     func(p *int) int { return *p },
+		"notNil":    func(p *int) bool { return p != nil },
+		"xmlEscape": html.EscapeString,
 	}
 
 	tmpl, err := template.New("plist").Funcs(funcMap).Parse(plistTemplate)

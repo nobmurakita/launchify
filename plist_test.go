@@ -247,6 +247,20 @@ func TestGeneratePlist_ProcessTypeStandard(t *testing.T) {
 	mustNotContain(t, plist, "ProcessType")
 }
 
+func TestGeneratePlist_XmlEscape(t *testing.T) {
+	c := Config{
+		Label:   "com.user.test&debug",
+		Program: `/usr/local/bin/test --msg "a<b"`,
+	}
+	plist, err := GeneratePlist(&c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, plist, "<string>com.user.test&amp;debug</string>")
+	mustContain(t, plist, "<string>a&lt;b</string>")
+	mustNotContain(t, plist, "test&debug</string>")
+}
+
 func TestGeneratePlist_WithEnvVars(t *testing.T) {
 	c := Config{
 		Label:   "com.user.test",
