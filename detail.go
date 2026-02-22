@@ -27,6 +27,8 @@ type detailDoneMsg struct {
 // detailModel はドリルダウン画面のモデル
 type detailModel struct {
 	kind     detailKind
+	title    string         // 画面タイトル
+	footer   string         // フッターテキスト
 	config   *Config
 	state    *formState
 	fields   []textinput.Model // Interval/Calendar 用
@@ -48,14 +50,24 @@ func newDetailModel(kind detailKind, c *Config, s *formState, width, height int)
 
 	switch kind {
 	case detailInterval:
+		m.title = "StartInterval"
+		m.footer = "enter/tab 次へ · esc キャンセル"
 		m.fields, m.labels = buildIntervalFields(s)
 	case detailCalendar:
+		m.title = "StartCalendarInterval"
+		m.footer = "enter/tab 次へ · esc キャンセル"
 		m.fields, m.labels = buildCalendarFields(s)
 	case detailEnvVars:
+		m.title = "環境変数"
+		m.footer = "tab 確定 · esc キャンセル"
 		m.textarea = buildEnvVarsTextarea(s, width)
 	case detailStdoutPath:
+		m.title = "StandardOutPath"
+		m.footer = "enter/tab 次へ · esc キャンセル"
 		m.fields, m.labels = buildLogPathField(s.stdoutPath, c.Label)
 	case detailStderrPath:
+		m.title = "StandardErrorPath"
+		m.footer = "enter/tab 次へ · esc キャンセル"
 		m.fields, m.labels = buildLogPathField(s.stderrPath, c.Label)
 	}
 
@@ -255,18 +267,7 @@ func (m detailModel) View() string {
 	var b strings.Builder
 
 	// タイトル
-	switch m.kind {
-	case detailInterval:
-		b.WriteString(detailTitleStyle.Render("StartInterval"))
-	case detailCalendar:
-		b.WriteString(detailTitleStyle.Render("StartCalendarInterval"))
-	case detailEnvVars:
-		b.WriteString(detailTitleStyle.Render("環境変数"))
-	case detailStdoutPath:
-		b.WriteString(detailTitleStyle.Render("StandardOutPath"))
-	case detailStderrPath:
-		b.WriteString(detailTitleStyle.Render("StandardErrorPath"))
-	}
+	b.WriteString(detailTitleStyle.Render(m.title))
 	b.WriteString("\n\n")
 
 	// 入力フィールド
@@ -302,11 +303,7 @@ func (m detailModel) View() string {
 	}
 
 	b.WriteString("\n\n")
-	if m.kind == detailEnvVars {
-		b.WriteString(detailFooterStyle.Render("tab 確定 · esc キャンセル"))
-	} else {
-		b.WriteString(detailFooterStyle.Render("enter/tab 次へ · esc キャンセル"))
-	}
+	b.WriteString(detailFooterStyle.Render(m.footer))
 
 	return b.String()
 }

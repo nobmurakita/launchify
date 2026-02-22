@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Field はフォーム内の入力フィールドを抽象化するインターフェース
@@ -434,33 +435,46 @@ func (f *ConfirmField) View() string {
 	return f.viewBlurred()
 }
 
-func (f *ConfirmField) viewFocused() string {
+func (f *ConfirmField) renderView(focused bool) string {
 	var b strings.Builder
+
+	// スタイル選択
+	var titleStyle, descStyle lipgloss.Style
+	var activeStyle, inactiveStyle lipgloss.Style
+	if focused {
+		titleStyle, descStyle = focusedTitleStyle, focusedDescStyle
+		if f.buttonStyle {
+			activeStyle, inactiveStyle = activeButtonStyle, inactiveButtonStyle
+		} else {
+			activeStyle, inactiveStyle = activeToggleStyle, inactiveToggleStyle
+		}
+	} else {
+		titleStyle, descStyle = blurredTitleStyle, blurredMutedStyle
+		if f.buttonStyle {
+			activeStyle, inactiveStyle = blurredActiveButtonStyle, blurredInactiveButtonStyle
+		} else {
+			activeStyle, inactiveStyle = blurredValueStyle, blurredMutedStyle
+		}
+	}
+
+	// タイトル（ボタンスタイルでない場合のみ表示）
 	if !f.buttonStyle {
-		b.WriteString(focusedTitleStyle.Render(f.title))
+		b.WriteString(titleStyle.Render(f.title))
 		if f.description != "" {
 			b.WriteString("  ")
-			b.WriteString(focusedDescStyle.Render(f.description))
+			b.WriteString(descStyle.Render(f.description))
 		}
 		b.WriteString("\n")
 	}
+
+	// ラベル
 	yes, no := f.labels()
-	if f.buttonStyle {
-		if *f.value {
-			yes = activeButtonStyle.Render(yes)
-			no = inactiveButtonStyle.Render(no)
-		} else {
-			yes = inactiveButtonStyle.Render(yes)
-			no = activeButtonStyle.Render(no)
-		}
+	if *f.value {
+		yes = activeStyle.Render(yes)
+		no = inactiveStyle.Render(no)
 	} else {
-		if *f.value {
-			yes = activeToggleStyle.Render(yes)
-			no = inactiveToggleStyle.Render(no)
-		} else {
-			yes = inactiveToggleStyle.Render(yes)
-			no = activeToggleStyle.Render(no)
-		}
+		yes = inactiveStyle.Render(yes)
+		no = activeStyle.Render(no)
 	}
 	left, right := yes, no
 	if f.reverseOrder {
@@ -474,45 +488,8 @@ func (f *ConfirmField) viewFocused() string {
 	return b.String()
 }
 
-func (f *ConfirmField) viewBlurred() string {
-	var b strings.Builder
-	if !f.buttonStyle {
-		b.WriteString(blurredTitleStyle.Render(f.title))
-		if f.description != "" {
-			b.WriteString("  ")
-			b.WriteString(blurredMutedStyle.Render(f.description))
-		}
-		b.WriteString("\n")
-	}
-	yes, no := f.labels()
-	if f.buttonStyle {
-		if *f.value {
-			yes = blurredActiveButtonStyle.Render(yes)
-			no = blurredInactiveButtonStyle.Render(no)
-		} else {
-			yes = blurredInactiveButtonStyle.Render(yes)
-			no = blurredActiveButtonStyle.Render(no)
-		}
-	} else {
-		if *f.value {
-			yes = blurredValueStyle.Render(yes)
-			no = blurredMutedStyle.Render(no)
-		} else {
-			yes = blurredMutedStyle.Render(yes)
-			no = blurredValueStyle.Render(no)
-		}
-	}
-	left, right := yes, no
-	if f.reverseOrder {
-		left, right = no, yes
-	}
-	if f.buttonStyle {
-		fmt.Fprintf(&b, "%s  %s", left, right)
-	} else {
-		fmt.Fprintf(&b, "  %s  %s", left, right)
-	}
-	return b.String()
-}
+func (f *ConfirmField) viewFocused() string { return f.renderView(true) }
+func (f *ConfirmField) viewBlurred() string { return f.renderView(false) }
 
 func (f *ConfirmField) Focus() tea.Cmd {
 	f.focused = true
