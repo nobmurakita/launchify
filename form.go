@@ -1,14 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // formState はフォーム入力用のローカル変数をまとめた構造体。
@@ -17,228 +15,463 @@ type formState struct {
 	processType    string
 	keepAlive      string
 	scheduleType   string
-	logType        string
+	directInstall  bool
 	intervalStr    string
-	minuteStr      string
-	hourStr        string
-	dayStr         string
-	monthStr       string
-	weekdayStr     string
-	enableEnvVars  bool
-	envVarsStr     string
+	minuteStr     string
+	hourStr       string
+	dayStr        string
+	monthStr      string
+	weekdayStr    string
+	envVarsStr    string
 }
 
-// RunForm はTUIフォームを表示し、入力結果をConfigとして返す
-func RunForm() (*Config, error) {
-	c := &Config{RunAtLoad: true}
-	s := &formState{}
-	form := buildForm(c, s)
-	if err := form.WithTheme(formTheme()).Run(); err != nil {
-		return nil, err
+// formSubmitMsg はフォーム送信時に発行されるメッセージ
+type formSubmitMsg struct{}
+
+// openDetailMsg はドリルダウン画面への遷移を要求するメッセージ
+type openDetailMsg struct {
+	kind detailKind
+}
+
+// formModel はフォーム画面のモデル
+type formModel struct {
+	config   *Config
+	state    *formState
+	fields   []Field
+	focused  int
+	width    int
+	height   int
+	// スクロール: 表示開始行のオフセット
+	scrollOffset int
+	// エラーメッセージ（送信失敗時にフッター付近に表示）
+	errMsg string
+}
+
+func newFormModel(c *Config, s *formState) formModel {
+	m := formModel{config: c, state: s}
+	m.fields = m.buildFields()
+	return m
+}
+
+// buildFields はConfig/formStateのポインタにバインドされたフィールドを生成する
+func (m *formModel) buildFields() []Field {
+	c := m.config
+	s := m.state
+	return []Field{
+		// 1. Label
+		NewTextInputField("Label", "LaunchAgentの識別子（例: com.user.mytool）", &c.Label, WithRequired()),
+
+		// 2. Program
+		NewTextInputField("Program", "実行するコマンド", &c.Program, WithRequired(),
+			WithDefaultFunc(func() string {
+				if c.Label == "" {
+					return ""
+				}
+				// com.user.mytool → mytool
+				parts := strings.Split(c.Label, ".")
+				return parts[len(parts)-1]
+			})),
+
+		// 3. WorkingDirectory
+		NewTextInputField("WorkingDirectory", "作業ディレクトリ（省略可）", &c.WorkingDirectory),
+
+		// 4. 環境変数（Enterでドリルダウンへ遷移）
+		NewDrillDownField("環境変数", func() string {
+			return strings.TrimSpace(s.envVarsStr)
+		}),
+
+		// 5. ProcessType
+		NewSelectField("ProcessType", []SelectOption{
+			{"Standard（デフォルト）", "Standard"},
+			{"Background（リソース制限あり）", "Background"},
+			{"Interactive（リソース制限なし）", "Interactive"},
+		}, &s.processType),
+
+		// 6. RunAtLoad
+		NewConfirmField("RunAtLoad", "ロード時に即実行する", &c.RunAtLoad),
+
+		// 7. スケジュール（interval/calendar → ドリルダウンへ遷移）
+		NewSelectField("スケジュール", []SelectOption{
+			{"なし", "none"},
+			{"Interval", "interval"},
+			{"Calendar", "calendar"},
+		}, &s.scheduleType,
+			WithOptionDetailFn(func(value string) string {
+				if d := scheduleOptionDetail(s, value); d != "" {
+					return d
+				}
+				if (value == "interval" || value == "calendar") && value == s.scheduleType {
+					return "enter で編集"
+				}
+				return ""
+			}),
+			WithSelectValidateFunc(func(value string) string {
+				if (value == "interval" || value == "calendar") && scheduleOptionDetail(s, value) == "" {
+					return "enter で詳細を入力してください"
+				}
+				return ""
+			}),
+		),
+
+		// 8. KeepAlive
+		NewSelectField("KeepAlive", []SelectOption{
+			{"しない", "none"},
+			{"常に再起動", "always"},
+			{"異常終了時のみ再起動", "on_failure"},
+		}, &s.keepAlive),
+
+		// 9. StandardOutPath（ドリルダウンでパス編集）
+		NewDrillDownField("StandardOutPath", func() string {
+			return c.StdoutPath
+		}),
+
+		// 10. StandardErrorPath（ドリルダウンでパス編集）
+		NewDrillDownField("StandardErrorPath", func() string {
+			return c.StderrPath
+		}),
+
+		// 11. アクション選択
+		NewConfirmField("アクション", "", &s.directInstall,
+			WithLabels("プレビュー", "インストール"), WithReverseOrder(), WithButtonStyle()),
 	}
-	applyFormValues(c, s)
-	return c, nil
 }
 
-// buildForm はフォーム入力用のhuh.Formを構築する。
-// cとsのフィールドへのポインタをフォームにバインドするため、
-// フォームを再構築しても既存の値が保持される。
-func buildForm(c *Config, s *formState) *huh.Form {
-	return huh.NewForm(
-		// グループ1: 基本設定
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Program").
-				Description("実行するコマンド").
-				Value(&c.Program).
-				Validate(huh.ValidateNotEmpty()),
+func (m formModel) Init() tea.Cmd {
+	if len(m.fields) > 0 {
+		return m.fields[0].Focus()
+	}
+	return nil
+}
 
-			huh.NewInput().
-				Title("Label").
-				Description("LaunchAgentの識別子（例: com.user.mytool）").
-				PlaceholderFunc(func() string {
-					if c.Program == "" {
-						return ""
-					}
-					return filepath.Base(strings.Fields(c.Program)[0])
-				}, &c.Program).
-				Value(&c.Label),
+func (m formModel) Update(msg tea.Msg) (formModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
 
-			huh.NewInput().
-				Title("WorkingDirectory").
-				Description("作業ディレクトリ（省略可）").
-				Value(&c.WorkingDirectory),
+	case tea.KeyMsg:
+		return m.handleKey(msg)
+	}
 
-			huh.NewConfirm().
-				Title("環境変数").
-				Description("環境変数を設定する").
-				Value(&s.enableEnvVars),
-		),
+	// フォーカス中のフィールドにメッセージを委譲
+	return m.updateFocused(msg)
+}
 
-		// グループ1.5: 環境変数入力（条件付き）
-		huh.NewGroup(
-			huh.NewText().
-				Title("環境変数").
-				Description("KEY=VALUE 形式で1行ずつ入力").
-				Lines(8).
-				Value(&s.envVarsStr),
-		).WithHideFunc(func() bool {
-			return !s.enableEnvVars
-		}),
+func (m formModel) handleKey(msg tea.KeyMsg) (formModel, tea.Cmd) {
+	// キー操作時にエラーメッセージをクリア
+	m.errMsg = ""
 
-		// グループ2: スケジュール
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("RunAtLoad").
-				Description("ロード時に即実行する").
-				Value(&c.RunAtLoad),
+	switch msg.String() {
+	case "enter":
+		return m.handleAdvance(true)
+	case "tab":
+		return m.handleAdvance(false)
+	case "shift+tab":
+		return m.moveFocus(-1)
+	case "ctrl+c":
+		return m, tea.Quit
+	}
 
-			huh.NewSelect[string]().
-				Title("スケジュール").
-				Options(
-					huh.NewOption("なし", "none"),
-					huh.NewOption("Interval（秒指定）", "interval"),
-					huh.NewOption("Calendar（日時指定）", "calendar"),
-				).
-				Value(&s.scheduleType),
-		),
+	// フォーカス中のフィールドにキーを委譲
+	return m.updateFocused(msg)
+}
 
-		// グループ2.5: Interval入力（条件付き）
-		huh.NewGroup(
-			huh.NewInput().
-				Title("StartInterval").
-				Description("実行間隔（秒）。空欄でスキップ").
-				Value(&s.intervalStr).
-				Validate(func(str string) error {
-					if str == "" {
-						return nil
-					}
-					n, err := strconv.Atoi(str)
-					if err != nil || n <= 0 {
-						return fmt.Errorf("正の整数を入力してください")
-					}
-					return nil
-				}),
-		).WithHideFunc(func() bool {
-			return s.scheduleType != "interval"
-		}),
+// handleAdvance はフォーカスを次へ進める。
+// drillDown=true（Enter）ならドリルダウン遷移・ボタン確定を判定し、
+// false（Tab）なら次のフィールドへ移動する。
+func (m formModel) handleAdvance(drillDown bool) (formModel, tea.Cmd) {
+	visible := m.visibleFields()
 
-		// グループ2.6: Calendar入力（条件付き）
-		huh.NewGroup(
-			huh.NewInput().
-				Title("分 (Minute)").
-				Description("0-59（空欄=毎分）").
-				Value(&s.minuteStr),
+	// Enterの場合
+	if drillDown {
+		// ドリルダウン遷移を判定
+		if cmd := m.checkDrillDown(); cmd != nil {
+			return m, cmd
+		}
+		// ボタンフィールドなら送信
+		if m.focused < len(visible) {
+			if cf, ok := visible[m.focused].(*ConfirmField); ok && cf.buttonStyle {
+				return m, func() tea.Msg { return formSubmitMsg{} }
+			}
+		}
+	}
 
-			huh.NewInput().
-				Title("時 (Hour)").
-				Description("0-23（空欄=毎時）").
-				Value(&s.hourStr),
+	// バリデーションチェック
+	if m.focused < len(visible) {
+		if errMsg := visible[m.focused].Validate(); errMsg != "" {
+			return m, nil
+		}
+	}
 
-			huh.NewInput().
-				Title("日 (Day)").
-				Description("1-31（空欄=毎日）").
-				Value(&s.dayStr),
+	// 最終フィールドならそれ以上進まない
+	if m.focused >= len(visible)-1 {
+		return m, nil
+	}
 
-			huh.NewInput().
-				Title("月 (Month)").
-				Description("1-12（空欄=毎月）").
-				Value(&s.monthStr),
+	return m.moveFocus(1)
+}
 
-			huh.NewInput().
-				Title("曜日 (Weekday)").
-				Description("0=日, 1=月, ..., 6=土（空欄=毎日）").
-				Value(&s.weekdayStr),
-		).WithHideFunc(func() bool {
-			return s.scheduleType != "calendar"
-		}),
+// checkDrillDown は現在のフィールドの値に応じてドリルダウンメッセージを返す
+func (m formModel) checkDrillDown() tea.Cmd {
+	visible := m.visibleFields()
+	if m.focused >= len(visible) {
+		return nil
+	}
+	f := visible[m.focused]
 
-		// グループ3: プロセス設定
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("ProcessType").
-				Description("プロセスの優先度").
-				Options(
-					huh.NewOption("Standard（デフォルト）", "Standard"),
-					huh.NewOption("Background（リソース制限あり）", "Background"),
-					huh.NewOption("Interactive（リソース制限なし）", "Interactive"),
-				).
-				Value(&s.processType),
+	// 環境変数: 常にドリルダウン
+	if df, ok := f.(*DrillDownField); ok && df.title == "環境変数" {
+		return func() tea.Msg { return openDetailMsg{kind: detailEnvVars} }
+	}
 
-			huh.NewSelect[string]().
-				Title("KeepAlive").
-				Options(
-					huh.NewOption("しない", "none"),
-					huh.NewOption("常に再起動", "always"),
-					huh.NewOption("異常終了時のみ再起動", "on_failure"),
-				).
-				Value(&s.keepAlive),
-		),
+	// スケジュール: interval/calendar 選択時にドリルダウン
+	if sf, ok := f.(*SelectField); ok && sf.title == "スケジュール" {
+		switch sf.SelectedValue() {
+		case "interval":
+			return func() tea.Msg { return openDetailMsg{kind: detailInterval} }
+		case "calendar":
+			return func() tea.Msg { return openDetailMsg{kind: detailCalendar} }
+		}
+	}
 
-		// グループ4: ログ出力
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("ログファイル出力").
-				Options(
-					huh.NewOption("出力しない", "none"),
-					huh.NewOption("stdout + stderr", "both"),
-					huh.NewOption("stdoutのみ", "stdout"),
-					huh.NewOption("stderrのみ", "stderr"),
-				).
-				Value(&s.logType),
-		),
+	// ログパス: 常にドリルダウン
+	if df, ok := f.(*DrillDownField); ok && df.title == "StandardOutPath" {
+		return func() tea.Msg { return openDetailMsg{kind: detailStdoutPath} }
+	}
+	if df, ok := f.(*DrillDownField); ok && df.title == "StandardErrorPath" {
+		return func() tea.Msg { return openDetailMsg{kind: detailStderrPath} }
+	}
 
-		// グループ4.5: stdout+stderrパス（条件付き）
-		huh.NewGroup(
-			huh.NewInput().
-				Title("StandardOutPath").
-				DescriptionFunc(func() string {
-					return "stdout出力先（空欄の場合: ~/Library/Logs/" + resolveLabel(c) + ".log）"
-				}, c).
-				Value(&c.StdoutPath),
+	return nil
+}
 
-			huh.NewInput().
-				Title("StandardErrorPath").
-				Description("stderr出力先（空欄の場合: stdoutと同じ）").
-				Value(&c.StderrPath),
-		).WithHideFunc(func() bool {
-			return s.logType != "both"
-		}),
+func (m formModel) updateFocused(msg tea.Msg) (formModel, tea.Cmd) {
+	visible := m.visibleFields()
+	if m.focused >= len(visible) {
+		return m, nil
+	}
 
-		// グループ4.6: stdoutのみパス（条件付き）
-		huh.NewGroup(
-			huh.NewInput().
-				Title("StandardOutPath").
-				DescriptionFunc(func() string {
-					return "stdout出力先（空欄の場合: ~/Library/Logs/" + resolveLabel(c) + ".log）"
-				}, c).
-				Value(&c.StdoutPath),
-		).WithHideFunc(func() bool {
-			return s.logType != "stdout"
-		}),
+	idx := m.absoluteIndex(m.focused)
+	updated, cmd := m.fields[idx].Update(msg)
+	m.fields[idx] = updated
+	return m, cmd
+}
 
-		// グループ4.7: stderrのみパス（条件付き）
-		huh.NewGroup(
-			huh.NewInput().
-				Title("StandardErrorPath").
-				DescriptionFunc(func() string {
-					return "stderr出力先（空欄の場合: ~/Library/Logs/" + resolveLabel(c) + ".log）"
-				}, c).
-				Value(&c.StderrPath),
-		).WithHideFunc(func() bool {
-			return s.logType != "stderr"
-		}),
-	)
+// moveFocus はフォーカスをdelta分移動する
+func (m formModel) moveFocus(delta int) (formModel, tea.Cmd) {
+	visible := m.visibleFields()
+	if len(visible) == 0 {
+		return m, nil
+	}
+
+	// 現在のフィールドをBlur
+	if m.focused < len(visible) {
+		visible[m.focused].Blur()
+	}
+
+	m.focused = max(m.focused+delta, 0)
+	m.focused = min(m.focused, len(visible)-1)
+
+	m.adjustScroll()
+
+	// 新しいフィールドをFocus
+	cmd := visible[m.focused].Focus()
+	return m, cmd
+}
+
+// FocusField はフォーカスを指定されたvisibleインデックスに移動する
+func (m *formModel) FocusField(visibleIdx int) tea.Cmd {
+	visible := m.visibleFields()
+	if len(visible) == 0 {
+		return nil
+	}
+
+	// 現在のフィールドをBlur
+	if m.focused < len(visible) {
+		visible[m.focused].Blur()
+	}
+
+	m.focused = max(visibleIdx, 0)
+	if m.focused >= len(visible) {
+		m.focused = len(visible) - 1
+	}
+
+	m.adjustScroll()
+	return visible[m.focused].Focus()
+}
+
+// adjustScroll はフォーカス位置に応じてスクロールオフセットを調整する
+func (m *formModel) adjustScroll() {
+	if m.height == 0 {
+		return
+	}
+
+	visible := m.visibleFields()
+	usableHeight := m.height - 2 // フッター分
+
+	// フォーカス位置までの累積行数を計算
+	// Join("\n\n") により各フィールド間に空行1行が入る
+	topY := 0
+	for i := 0; i < m.focused && i < len(visible); i++ {
+		topY += visible[i].Height() + 1 // +1 はフィールド間の空行
+	}
+	focusedH := 0
+	if m.focused < len(visible) {
+		focusedH = visible[m.focused].Height()
+	}
+	bottomY := topY + focusedH
+
+	// 上にスクロール
+	if topY < m.scrollOffset {
+		m.scrollOffset = topY
+	}
+	// 下にスクロール
+	if bottomY > m.scrollOffset+usableHeight {
+		m.scrollOffset = bottomY - usableHeight
+	}
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+}
+
+func (m formModel) View() string {
+	visible := m.visibleFields()
+	if len(visible) == 0 {
+		return ""
+	}
+
+	// 各フィールドのViewを行として構築
+	bar := focusBarStyle.Render("│")
+	pad := strings.Repeat(" ", focusBarWidth)
+	var lines []string
+	for i, f := range visible {
+		view := f.View()
+		if i == m.focused {
+			// フォーカス中のフィールドに色付きバーを付加
+			var decorated []string
+			for _, line := range strings.Split(view, "\n") {
+				decorated = append(decorated, bar+" "+line)
+			}
+			view = strings.Join(decorated, "\n")
+		} else {
+			// 非フォーカスはバー幅分のパディング
+			var padded []string
+			for _, line := range strings.Split(view, "\n") {
+				padded = append(padded, pad+line)
+			}
+			view = strings.Join(padded, "\n")
+		}
+		lines = append(lines, view)
+	}
+	content := strings.Join(lines, "\n\n")
+
+	// スクロール処理
+	allLines := strings.Split(content, "\n")
+	usableHeight := m.height - 2 // フッター分
+	if usableHeight < 1 {
+		usableHeight = len(allLines)
+	}
+
+	start := min(m.scrollOffset, len(allLines))
+	end := min(start+usableHeight, len(allLines))
+
+	var b strings.Builder
+	b.WriteString(strings.Join(allLines[start:end], "\n"))
+	b.WriteString("\n\n")
+	if m.errMsg != "" {
+		b.WriteString(errorStyle.Render("  "+m.errMsg) + "\n")
+	}
+	b.WriteString(formFooterStyle.Render("tab 次へ · shift+tab 戻る · enter 確定/詳細 · ctrl+c 終了"))
+
+	return b.String()
+}
+
+// visibleFields は現在表示可能なフィールドのみを返す
+func (m formModel) visibleFields() []Field {
+	var result []Field
+	for _, f := range m.fields {
+		if f.Visible() {
+			result = append(result, f)
+		}
+	}
+	return result
+}
+
+// absoluteIndex はvisibleインデックスからm.fieldsの絶対インデックスを返す
+func (m formModel) absoluteIndex(visibleIdx int) int {
+	count := 0
+	for i, f := range m.fields {
+		if f.Visible() {
+			if count == visibleIdx {
+				return i
+			}
+			count++
+		}
+	}
+	return len(m.fields) - 1
+}
+
+// CollectValues はフィールドの値をConfig/formStateに書き戻す
+func (m formModel) CollectValues() {
+	for _, f := range m.fields {
+		if tf, ok := f.(*TextInputField); ok {
+			switch tf.title {
+			case "Program":
+				m.config.Program = tf.Value()
+			case "Label":
+				m.config.Label = tf.Value()
+			case "WorkingDirectory":
+				m.config.WorkingDirectory = tf.Value()
+			case "StandardOutPath":
+				m.config.StdoutPath = tf.Value()
+			case "StandardErrorPath":
+				m.config.StderrPath = tf.Value()
+			}
+		}
+	}
+}
+
+// ---------- ユーティリティ関数 ----------
+
+// scheduleOptionDetail はスケジュールオプションの詳細文字列を返す。
+// ドリルダウンで値が入力済みの場合のみ文字列を返し、未入力なら空文字列を返す。
+func scheduleOptionDetail(s *formState, optionValue string) string {
+	switch optionValue {
+	case "interval":
+		if s.intervalStr != "" {
+			return s.intervalStr + "秒"
+		}
+	case "calendar":
+		parts := []struct {
+			label string
+			value string
+		}{
+			{"月", s.monthStr},
+			{"日", s.dayStr},
+			{"曜日", s.weekdayStr},
+			{"時", s.hourStr},
+			{"分", s.minuteStr},
+		}
+		var items []string
+		for _, p := range parts {
+			if p.value != "" {
+				items = append(items, p.label+"="+p.value)
+			}
+		}
+		if len(items) > 0 {
+			return strings.Join(items, " ")
+		}
+	}
+	return ""
 }
 
 // applyFormValues はフォームの入力値（formState）をConfigに反映する
 func applyFormValues(c *Config, s *formState) {
-	// Labelが空欄ならProgramのベース名を使用
-	if c.Label == "" {
-		fields := strings.Fields(c.Program)
-		if len(fields) > 0 {
-			c.Label = filepath.Base(fields[0])
-		}
+	// Programが空欄ならLabelの末尾を使用
+	if c.Program == "" && c.Label != "" {
+		parts := strings.Split(c.Label, ".")
+		c.Program = parts[len(parts)-1]
 	}
 
 	c.ProcessType = ProcessType(s.processType)
@@ -267,64 +500,10 @@ func applyFormValues(c *Config, s *formState) {
 		}
 	}
 
-	if s.enableEnvVars {
-		c.EnvironmentVars = parseEnvVars(s.envVarsStr)
-	}
+	c.EnvironmentVars = parseEnvVars(s.envVarsStr)
 
-	defaultLogPath := func() string {
-		home, _ := os.UserHomeDir()
-		return filepath.Join(home, "Library", "Logs", c.Label+".log")
-	}
-	switch s.logType {
-	case "both":
-		if c.StdoutPath == "" {
-			c.StdoutPath = defaultLogPath()
-		}
-		if c.StderrPath == "" {
-			c.StderrPath = c.StdoutPath
-		}
-	case "stdout":
-		if c.StdoutPath == "" {
-			c.StdoutPath = defaultLogPath()
-		}
-		c.StderrPath = ""
-	case "stderr":
-		c.StdoutPath = ""
-		if c.StderrPath == "" {
-			c.StderrPath = defaultLogPath()
-		}
-	default:
-		c.StdoutPath = ""
-		c.StderrPath = ""
-	}
 	c.StdoutPath = toAbsPath(c.StdoutPath)
 	c.StderrPath = toAbsPath(c.StderrPath)
-}
-
-// formTheme はフォーカス状態を強調するカスタムテーマを返す
-func formTheme() *huh.Theme {
-	t := huh.ThemeCharm()
-
-	// フォーカス中: 太い左ボーダー + 明るいタイトル
-	cyan := lipgloss.AdaptiveColor{Light: "#0891b2", Dark: "#22d3ee"}
-	dimGray := lipgloss.AdaptiveColor{Light: "#a1a1aa", Dark: "#71717a"}
-
-	t.Focused.Base = t.Focused.Base.
-		BorderForeground(cyan)
-	t.Focused.Title = t.Focused.Title.
-		Foreground(cyan).Bold(true)
-
-	// 非フォーカス: 薄いグレーで控えめに
-	t.Blurred.Base = t.Blurred.Base.
-		BorderStyle(lipgloss.HiddenBorder())
-	t.Blurred.Title = t.Blurred.Title.
-		Foreground(dimGray).Bold(false)
-	t.Blurred.Description = t.Blurred.Description.
-		Foreground(dimGray)
-	t.Blurred.TextInput.Text = t.Blurred.TextInput.Text.
-		Foreground(dimGray)
-
-	return t
 }
 
 // toAbsPath は~展開と絶対パス変換を行う。空文字列はそのまま返す。
@@ -338,18 +517,6 @@ func toAbsPath(path string) string {
 	}
 	path, _ = filepath.Abs(path)
 	return path
-}
-
-// resolveLabel はConfigからLabel（未入力ならProgramのベース名）を返す
-func resolveLabel(c *Config) string {
-	if c.Label != "" {
-		return c.Label
-	}
-	fields := strings.Fields(c.Program)
-	if len(fields) > 0 {
-		return filepath.Base(fields[0])
-	}
-	return ""
 }
 
 // parseEnvVars は "KEY=VALUE\nKEY2=VALUE2" 形式の文字列をmapに変換する
