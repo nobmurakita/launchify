@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolveProgram_FullPath(t *testing.T) {
 	got, err := resolveProgram("/usr/bin/env foo bar")
@@ -56,5 +59,26 @@ func TestResolveProgram_ResolvesCommandWithArgs(t *testing.T) {
 	}
 	if len(got) < 4 {
 		t.Errorf("unexpected result: %q", got)
+	}
+}
+
+func TestResolveProgram_NotFoundCommand(t *testing.T) {
+	_, err := resolveProgram("nonexistent_command_xyz_12345")
+	if err == nil {
+		t.Error("expected error for non-existent command")
+	}
+	if !strings.Contains(err.Error(), "見つかりません") {
+		t.Errorf("error should mention command not found, got: %v", err)
+	}
+}
+
+func TestResolveProgram_ShlexParseError(t *testing.T) {
+	// 閉じていないクォートはshlexパースエラーになる
+	_, err := resolveProgram(`echo "unclosed quote`)
+	if err == nil {
+		t.Error("expected error for unclosed quote")
+	}
+	if !strings.Contains(err.Error(), "解析に失敗") {
+		t.Errorf("error should mention parse failure, got: %v", err)
 	}
 }

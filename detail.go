@@ -11,6 +11,16 @@ import (
 // envVarsTextareaHeight は環境変数テキストエリアのデフォルト高さ
 const envVarsTextareaHeight = 8
 
+// カレンダーフィールドのインデックス
+const (
+	calMonth      = 0
+	calDay        = 1
+	calWeekday    = 2
+	calHour       = 3
+	calMinute     = 4
+	calFieldCount = 5
+)
+
 // detailKind はドリルダウン画面の種類を表す
 type detailKind int
 
@@ -88,17 +98,28 @@ func buildIntervalFields(s *formState) ([]textinput.Model, []string) {
 }
 
 func buildCalendarFields(s *formState) ([]textinput.Model, []string) {
-	values := []string{s.monthStr, s.dayStr, s.weekdayStr, s.hourStr, s.minuteStr}
-	labels := []string{
-		"月 (Month) 1-12",
-		"日 (Day) 1-31",
-		"曜日 (Weekday) 0=日..6=土",
-		"時 (Hour) 0-23",
-		"分 (Minute) 0-59",
-	}
-	placeholders := []string{"空欄=毎月", "空欄=毎日", "空欄=毎日", "空欄=毎時", "空欄=毎分"}
+	values := make([]string, calFieldCount)
+	values[calMonth] = s.monthStr
+	values[calDay] = s.dayStr
+	values[calWeekday] = s.weekdayStr
+	values[calHour] = s.hourStr
+	values[calMinute] = s.minuteStr
 
-	fields := make([]textinput.Model, len(values))
+	labels := make([]string, calFieldCount)
+	labels[calMonth] = "月 (Month) 1-12"
+	labels[calDay] = "日 (Day) 1-31"
+	labels[calWeekday] = "曜日 (Weekday) 0=日..6=土"
+	labels[calHour] = "時 (Hour) 0-23"
+	labels[calMinute] = "分 (Minute) 0-59"
+
+	placeholders := make([]string, calFieldCount)
+	placeholders[calMonth] = "空欄=毎月"
+	placeholders[calDay] = "空欄=毎日"
+	placeholders[calWeekday] = "空欄=毎日"
+	placeholders[calHour] = "空欄=毎時"
+	placeholders[calMinute] = "空欄=毎分"
+
+	fields := make([]textinput.Model, calFieldCount)
 	for i, val := range values {
 		ti := textinput.New()
 		ti.Placeholder = placeholders[i]
@@ -244,16 +265,12 @@ func (m *detailModel) applyFieldValues() {
 			m.state.intervalStr = m.fields[0].Value()
 		}
 	case detailCalendar:
-		vals := make([]string, len(m.fields))
-		for i, f := range m.fields {
-			vals[i] = f.Value()
-		}
-		if len(vals) >= 5 {
-			m.state.monthStr = vals[0]
-			m.state.dayStr = vals[1]
-			m.state.weekdayStr = vals[2]
-			m.state.hourStr = vals[3]
-			m.state.minuteStr = vals[4]
+		if len(m.fields) >= calFieldCount {
+			m.state.monthStr = m.fields[calMonth].Value()
+			m.state.dayStr = m.fields[calDay].Value()
+			m.state.weekdayStr = m.fields[calWeekday].Value()
+			m.state.hourStr = m.fields[calHour].Value()
+			m.state.minuteStr = m.fields[calMinute].Value()
 		}
 	case detailStdoutPath:
 		if len(m.fields) > 0 {
