@@ -18,15 +18,15 @@ type formState struct {
 
 	// skipPreview はアクション選択の結果（true=即インストール、false=プレビュー表示）
 	skipPreview bool
-	intervalStr    string
-	minuteStr     string
-	hourStr       string
-	dayStr        string
-	monthStr      string
-	weekdayStr    string
-	envVarsStr     string
-	stdoutPath     string
-	stderrPath     string
+	intervalStr string
+	minuteStr   string
+	hourStr     string
+	dayStr      string
+	monthStr    string
+	weekdayStr  string
+	envVarsStr  string
+	stdoutPath  string
+	stderrPath  string
 }
 
 // formSubmitMsg はフォーム送信時に発行されるメッセージ
@@ -39,12 +39,12 @@ type openDetailMsg struct {
 
 // formModel はフォーム画面のモデル
 type formModel struct {
-	config   *Config
-	state    *formState
-	fields   []Field
-	focused  int
-	width    int
-	height   int
+	config  *Config
+	state   *formState
+	fields  []Field
+	focused int
+	width   int
+	height  int
 	// スクロール: 表示開始行のオフセット
 	scrollOffset int
 	// エラーメッセージ（送信失敗時にフッター付近に表示）

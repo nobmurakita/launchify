@@ -22,9 +22,9 @@ const (
 type KeepAliveType string
 
 const (
-	KeepAliveNone         KeepAliveType = "none"
-	KeepAliveAlways       KeepAliveType = "always"
-	KeepAliveOnFailure    KeepAliveType = "on_failure"
+	KeepAliveNone      KeepAliveType = "none"
+	KeepAliveAlways    KeepAliveType = "always"
+	KeepAliveOnFailure KeepAliveType = "on_failure"
 )
 
 // Config はLaunchAgentの設定を保持する
