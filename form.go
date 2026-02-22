@@ -10,6 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// formFooterLines はフォームフッターが占める行数（操作ガイド + 空行）
+const formFooterLines = 2
+
 // formState はフォーム入力用のローカル変数をまとめた構造体。
 // Configへの変換前の中間状態を保持する。
 type formState struct {
@@ -306,6 +309,11 @@ func (m *formModel) rebuildAndFocus() tea.Cmd {
 	return m.FocusField(m.focused)
 }
 
+// setError はエラーメッセージを設定する
+func (m *formModel) setError(msg string) {
+	m.errMsg = msg
+}
+
 // adjustScroll はフォーカス位置に応じてスクロールオフセットを調整する
 func (m *formModel) adjustScroll() {
 	if m.height == 0 {
@@ -313,7 +321,7 @@ func (m *formModel) adjustScroll() {
 	}
 
 	visible := m.visibleFields()
-	usableHeight := m.height - 2 // フッター分
+	usableHeight := m.height - formFooterLines // フッター分
 
 	// フォーカス位置までの累積行数を計算
 	// Join("\n\n") により各フィールド間に空行1行が入る
@@ -373,7 +381,7 @@ func (m formModel) View() string {
 
 	// スクロール処理
 	allLines := strings.Split(content, "\n")
-	usableHeight := m.height - 2 // フッター分
+	usableHeight := m.height - formFooterLines // フッター分
 	if usableHeight < 1 {
 		usableHeight = len(allLines)
 	}

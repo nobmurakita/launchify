@@ -105,6 +105,15 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 `
 
+// plistTmpl は事前パース済みのplistテンプレート
+var plistTmpl = template.Must(
+	template.New("plist").Funcs(template.FuncMap{
+		"deref":     func(p *int) int { return *p },
+		"notNil":    func(p *int) bool { return p != nil },
+		"xmlEscape": html.EscapeString,
+	}).Parse(plistTemplate),
+)
+
 // envVar は環境変数のキー・値ペア（ソート済み出力用）
 type envVar struct {
 	Key   string
@@ -174,22 +183,10 @@ func buildPlistData(c *Config) plistData {
 
 // renderPlist はplistDataからXML文字列をレンダリングする
 func renderPlist(data plistData) (string, error) {
-	funcMap := template.FuncMap{
-		"deref":     func(p *int) int { return *p },
-		"notNil":    func(p *int) bool { return p != nil },
-		"xmlEscape": html.EscapeString,
-	}
-
-	tmpl, err := template.New("plist").Funcs(funcMap).Parse(plistTemplate)
-	if err != nil {
-		return "", fmt.Errorf("テンプレートのパースに失敗: %w", err)
-	}
-
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := plistTmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("テンプレートの実行に失敗: %w", err)
 	}
-
 	return buf.String(), nil
 }
 

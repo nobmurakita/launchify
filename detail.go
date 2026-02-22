@@ -8,6 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// envVarsTextareaHeight は環境変数テキストエリアのデフォルト高さ
+const envVarsTextareaHeight = 8
+
 // detailKind はドリルダウン画面の種類を表す
 type detailKind int
 
@@ -133,7 +136,7 @@ func buildEnvVarsTextarea(s *formState, width int) textarea.Model {
 	if width > 4 {
 		ta.SetWidth(width - 4)
 	}
-	ta.SetHeight(8)
+	ta.SetHeight(envVarsTextareaHeight)
 	ta.Prompt = "  "
 	return ta
 }
