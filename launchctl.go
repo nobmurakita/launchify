@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,8 +28,9 @@ func PlistPath(label string) (string, error) {
 
 // Install はplist XMLをファイルに書き出し、launchctl load を実行する。
 // 既存ファイルがある場合はパス指定でアンロードしてから上書きする。
+// 進捗メッセージはwに出力する。
 // TODO: launchctl load/unload は macOS 10.10 以降非推奨。将来的に bootstrap/bootout への移行を検討。
-func Install(label, plistXML string) error {
+func Install(label, plistXML string, w io.Writer) error {
 	path, err := PlistPath(label)
 	if err != nil {
 		return err
@@ -38,7 +40,7 @@ func Install(label, plistXML string) error {
 	if _, err := os.Stat(path); err == nil {
 		cmd := exec.Command("launchctl", "unload", path)
 		_ = cmd.Run()
-		fmt.Println("既存サービスをアンロードしました")
+		fmt.Fprintln(w, "既存サービスをアンロードしました")
 	}
 
 	dir := filepath.Dir(path)
@@ -55,6 +57,6 @@ func Install(label, plistXML string) error {
 		return fmt.Errorf("launchctl loadに失敗: %s: %w", string(output), err)
 	}
 
-	fmt.Printf("インストール完了: %s\n", path)
+	fmt.Fprintf(w, "インストール完了: %s\n", path)
 	return nil
 }

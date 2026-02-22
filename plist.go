@@ -132,8 +132,8 @@ type plistData struct {
 	StartInterval    int
 	CalendarInterval *CalendarInterval
 	EnvironmentVars  []envVar
-	StdoutPath string
-	StderrPath string
+	StdoutPath       string
+	StderrPath       string
 }
 
 // GeneratePlist はConfigからplist XML文字列を生成する
@@ -150,8 +150,8 @@ func buildPlistData(c *Config) plistData {
 		WorkingDirectory: c.WorkingDirectory,
 		RunAtLoad:        c.RunAtLoad,
 		KeepAlive:        c.KeepAlive,
-		StdoutPath: c.StdoutPath,
-		StderrPath: c.StderrPath,
+		StdoutPath:       c.StdoutPath,
+		StderrPath:       c.StderrPath,
 	}
 
 	if c.ProcessType != ProcessStandard {

@@ -14,7 +14,3 @@ func TestCalendarInterval_HasValue(t *testing.T) {
 		t.Error("Minuteが設定されているのでHasValue=trueであるべき")
 	}
 }
-
-func intPtr(n int) *int {
-	return &n
-}

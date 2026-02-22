@@ -233,7 +233,10 @@ func TestFormModel_SelectFieldInitialValues(t *testing.T) {
 }
 
 func TestParseEnvVars(t *testing.T) {
-	got := parseEnvVars("PATH=/usr/local/bin\nHOME=/Users/test")
+	got, err := parseEnvVars("PATH=/usr/local/bin\nHOME=/Users/test")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(got) != 2 {
 		t.Fatalf("got %d entries, want 2", len(got))
 	}
@@ -246,19 +249,35 @@ func TestParseEnvVars(t *testing.T) {
 }
 
 func TestParseEnvVars_Empty(t *testing.T) {
-	got := parseEnvVars("")
+	got, err := parseEnvVars("")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != nil {
 		t.Errorf("got %v, want nil", got)
 	}
 }
 
 func TestParseEnvVars_WithSpaces(t *testing.T) {
-	got := parseEnvVars("  KEY = VALUE  \n\n  KEY2=VALUE2  \n")
+	got, err := parseEnvVars("  KEY = VALUE  \n\n  KEY2=VALUE2  \n")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(got) != 2 {
 		t.Fatalf("got %d entries, want 2", len(got))
 	}
 	if got["KEY"] != "VALUE" {
 		t.Errorf("KEY: got %q, want VALUE", got["KEY"])
+	}
+}
+
+func TestParseEnvVars_InvalidLine(t *testing.T) {
+	_, err := parseEnvVars("VALID=value\nINVALID_LINE\nKEY2=value2")
+	if err == nil {
+		t.Fatal("expected error for line without '='")
+	}
+	if !strings.Contains(err.Error(), "INVALID_LINE") {
+		t.Errorf("error should mention the invalid line, got: %v", err)
 	}
 }
 
@@ -455,5 +474,96 @@ func TestApplyFormValues_InvalidIntervalStr(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "StartInterval") {
 		t.Errorf("error should mention StartInterval, got: %v", err)
+	}
+}
+
+func TestApplyFormValues_IntervalZeroOrNegative(t *testing.T) {
+	tests := []struct {
+		name        string
+		intervalStr string
+	}{
+		{"zero", "0"},
+		{"negative", "-5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{Label: "test", Program: "/bin/test"}
+			s := &formState{
+				processType:  "Standard",
+				keepAlive:    "none",
+				scheduleType: "interval",
+				intervalStr:  tt.intervalStr,
+			}
+			err := applyFormValues(c, s)
+			if err == nil {
+				t.Fatal("expected error for non-positive interval")
+			}
+			if !strings.Contains(err.Error(), "正の整数") {
+				t.Errorf("error should mention positive integer, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestApplyFormValues_CalendarRangeValidation(t *testing.T) {
+	tests := []struct {
+		name  string
+		state formState
+	}{
+		{"month too high", formState{processType: "Standard", keepAlive: "none", scheduleType: "calendar", monthStr: "13"}},
+		{"month too low", formState{processType: "Standard", keepAlive: "none", scheduleType: "calendar", monthStr: "0"}},
+		{"day too high", formState{processType: "Standard", keepAlive: "none", scheduleType: "calendar", dayStr: "32"}},
+		{"weekday too high", formState{processType: "Standard", keepAlive: "none", scheduleType: "calendar", weekdayStr: "7"}},
+		{"hour too high", formState{processType: "Standard", keepAlive: "none", scheduleType: "calendar", hourStr: "24"}},
+		{"minute too high", formState{processType: "Standard", keepAlive: "none", scheduleType: "calendar", minuteStr: "60"}},
+		{"minute negative", formState{processType: "Standard", keepAlive: "none", scheduleType: "calendar", minuteStr: "-1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{Label: "test", Program: "/bin/test"}
+			s := tt.state
+			err := applyFormValues(c, &s)
+			if err == nil {
+				t.Fatal("expected range validation error")
+			}
+			if !strings.Contains(err.Error(), "範囲外") {
+				t.Errorf("error should mention out of range, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestApplyFormValues_CalendarValidRange(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		processType:  "Standard",
+		keepAlive:    "none",
+		scheduleType: "calendar",
+		monthStr:     "12",
+		dayStr:       "31",
+		weekdayStr:   "6",
+		hourStr:      "23",
+		minuteStr:    "59",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatalf("valid range values should not error: %v", err)
+	}
+}
+
+func TestApplyFormValues_InvalidEnvVars(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		processType:  "Standard",
+		keepAlive:    "none",
+		scheduleType: "none",
+		envVarsStr:   "VALID=value\nNO_EQUALS_SIGN",
+	}
+	err := applyFormValues(c, s)
+	if err == nil {
+		t.Fatal("expected error for invalid env var format")
+	}
+	if !strings.Contains(err.Error(), "環境変数の書式が不正") {
+		t.Errorf("error should mention invalid format, got: %v", err)
 	}
 }

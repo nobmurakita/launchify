@@ -100,7 +100,7 @@ func (m previewModel) View() string {
 
 	// 既存ファイル警告（存在する場合のみ）
 	if m.fileExists {
-		warning := fmt.Sprintf("⚠ %s は既に存在します（上書きされます）", m.plistPath)
+		warning := fmt.Sprintf("[!] %s は既に存在します（上書きされます）", m.plistPath)
 		b.WriteString(previewWarningStyle.Render(warning))
 		b.WriteString("\n")
 	} else {
