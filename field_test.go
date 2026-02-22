@@ -309,7 +309,7 @@ func TestConfirmField_Height(t *testing.T) {
 // ---------- DrillDownField ----------
 
 func TestDrillDownField_ViewEmpty(t *testing.T) {
-	f := NewDrillDownField("環境変数", func() string { return "" })
+	f := NewDrillDownField("環境変数", detailEnvVars, func() string { return "" })
 
 	// Blurred: 空の場合「-」を表示
 	view := f.View()
@@ -319,7 +319,7 @@ func TestDrillDownField_ViewEmpty(t *testing.T) {
 }
 
 func TestDrillDownField_ViewWithValue(t *testing.T) {
-	f := NewDrillDownField("環境変数", func() string { return "PATH, HOME" })
+	f := NewDrillDownField("環境変数", detailEnvVars, func() string { return "PATH, HOME" })
 
 	view := f.View()
 	if !strings.Contains(view, "PATH, HOME") {
@@ -328,7 +328,7 @@ func TestDrillDownField_ViewWithValue(t *testing.T) {
 }
 
 func TestDrillDownField_ViewFocused(t *testing.T) {
-	f := NewDrillDownField("環境変数", func() string { return "PATH" })
+	f := NewDrillDownField("環境変数", detailEnvVars, func() string { return "PATH" })
 	f.Focus()
 
 	view := f.View()
@@ -342,19 +342,19 @@ func TestDrillDownField_ViewFocused(t *testing.T) {
 
 func TestDrillDownField_Height(t *testing.T) {
 	// 空: title(+hint) + "なし" = 2
-	f := NewDrillDownField("Test", func() string { return "" })
+	f := NewDrillDownField("Test", detailEnvVars, func() string { return "" })
 	if h := f.Height(); h != 2 {
 		t.Errorf("empty Height() = %d, want 2", h)
 	}
 
 	// 1行: title(+hint) + 1 content line = 2
-	f2 := NewDrillDownField("Test", func() string { return "PATH=/usr/bin" })
+	f2 := NewDrillDownField("Test", detailEnvVars, func() string { return "PATH=/usr/bin" })
 	if h := f2.Height(); h != 2 {
 		t.Errorf("single-line Height() = %d, want 2", h)
 	}
 
 	// 複数行: title(+hint) + 2 content lines = 3
-	f3 := NewDrillDownField("Test", func() string { return "PATH=/usr/bin\nHOME=/Users/me" })
+	f3 := NewDrillDownField("Test", detailEnvVars, func() string { return "PATH=/usr/bin\nHOME=/Users/me" })
 	if h := f3.Height(); h != 3 {
 		t.Errorf("multi-line Height() = %d, want 3", h)
 	}

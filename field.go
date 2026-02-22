@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Field はフォーム内の入力フィールドを抽象化するインターフェース
@@ -15,7 +16,6 @@ type Field interface {
 	Focus() tea.Cmd
 	Blur()
 	Visible() bool
-	Focusable() bool  // Tab/Shift+Tabでフォーカス移動可能か
 	Validate() string // エラーメッセージ（空文字ならOK）
 	Height() int
 }
@@ -146,8 +146,6 @@ func (f *TextInputField) Blur() {
 	f.model.Blur()
 }
 
-func (f *TextInputField) Focusable() bool { return true }
-
 func (f *TextInputField) Visible() bool {
 	if f.visibleFn != nil {
 		return f.visibleFn()
@@ -197,6 +195,12 @@ func WithSelectValidateFunc(fn func(string) string) SelectFieldOption {
 	return func(f *SelectField) { f.validateFn = fn }
 }
 
+// WithOnEnterFunc はEnter押下時に実行するコマンド生成関数を設定する。
+// nilを返した場合はドリルダウン遷移しない。
+func WithOnEnterFunc(fn func() tea.Cmd) SelectFieldOption {
+	return func(f *SelectField) { f.onEnterFn = fn }
+}
+
 // SelectField は選択式フィールド
 type SelectField struct {
 	title          string
@@ -206,6 +210,7 @@ type SelectField struct {
 	focused        bool
 	optionDetailFn func(value string) string
 	validateFn     func(string) string
+	onEnterFn      func() tea.Cmd
 }
 
 func NewSelectField(title string, options []SelectOption, value *string, opts ...SelectFieldOption) *SelectField {
@@ -333,8 +338,7 @@ func (f *SelectField) Blur() {
 	f.focused = false
 }
 
-func (f *SelectField) Visible() bool   { return true }
-func (f *SelectField) Focusable() bool { return true }
+func (f *SelectField) Visible() bool { return true }
 
 func (f *SelectField) Validate() string {
 	if f.validateFn != nil {
@@ -431,33 +435,46 @@ func (f *ConfirmField) View() string {
 	return f.viewBlurred()
 }
 
-func (f *ConfirmField) viewFocused() string {
+func (f *ConfirmField) renderView(focused bool) string {
 	var b strings.Builder
+
+	// スタイル選択
+	var titleStyle, descStyle lipgloss.Style
+	var activeStyle, inactiveStyle lipgloss.Style
+	if focused {
+		titleStyle, descStyle = focusedTitleStyle, focusedDescStyle
+		if f.buttonStyle {
+			activeStyle, inactiveStyle = activeButtonStyle, inactiveButtonStyle
+		} else {
+			activeStyle, inactiveStyle = activeToggleStyle, inactiveToggleStyle
+		}
+	} else {
+		titleStyle, descStyle = blurredTitleStyle, blurredMutedStyle
+		if f.buttonStyle {
+			activeStyle, inactiveStyle = blurredActiveButtonStyle, blurredInactiveButtonStyle
+		} else {
+			activeStyle, inactiveStyle = blurredValueStyle, blurredMutedStyle
+		}
+	}
+
+	// タイトル（ボタンスタイルでない場合のみ表示）
 	if !f.buttonStyle {
-		b.WriteString(focusedTitleStyle.Render(f.title))
+		b.WriteString(titleStyle.Render(f.title))
 		if f.description != "" {
 			b.WriteString("  ")
-			b.WriteString(focusedDescStyle.Render(f.description))
+			b.WriteString(descStyle.Render(f.description))
 		}
 		b.WriteString("\n")
 	}
+
+	// ラベル
 	yes, no := f.labels()
-	if f.buttonStyle {
-		if *f.value {
-			yes = activeButtonStyle.Render(yes)
-			no = inactiveButtonStyle.Render(no)
-		} else {
-			yes = inactiveButtonStyle.Render(yes)
-			no = activeButtonStyle.Render(no)
-		}
+	if *f.value {
+		yes = activeStyle.Render(yes)
+		no = inactiveStyle.Render(no)
 	} else {
-		if *f.value {
-			yes = activeToggleStyle.Render(yes)
-			no = inactiveToggleStyle.Render(no)
-		} else {
-			yes = inactiveToggleStyle.Render(yes)
-			no = activeToggleStyle.Render(no)
-		}
+		yes = inactiveStyle.Render(yes)
+		no = activeStyle.Render(no)
 	}
 	left, right := yes, no
 	if f.reverseOrder {
@@ -471,45 +488,8 @@ func (f *ConfirmField) viewFocused() string {
 	return b.String()
 }
 
-func (f *ConfirmField) viewBlurred() string {
-	var b strings.Builder
-	if !f.buttonStyle {
-		b.WriteString(blurredTitleStyle.Render(f.title))
-		if f.description != "" {
-			b.WriteString("  ")
-			b.WriteString(blurredMutedStyle.Render(f.description))
-		}
-		b.WriteString("\n")
-	}
-	yes, no := f.labels()
-	if f.buttonStyle {
-		if *f.value {
-			yes = blurredActiveButtonStyle.Render(yes)
-			no = blurredInactiveButtonStyle.Render(no)
-		} else {
-			yes = blurredInactiveButtonStyle.Render(yes)
-			no = blurredActiveButtonStyle.Render(no)
-		}
-	} else {
-		if *f.value {
-			yes = blurredValueStyle.Render(yes)
-			no = blurredMutedStyle.Render(no)
-		} else {
-			yes = blurredMutedStyle.Render(yes)
-			no = blurredValueStyle.Render(no)
-		}
-	}
-	left, right := yes, no
-	if f.reverseOrder {
-		left, right = no, yes
-	}
-	if f.buttonStyle {
-		fmt.Fprintf(&b, "%s  %s", left, right)
-	} else {
-		fmt.Fprintf(&b, "  %s  %s", left, right)
-	}
-	return b.String()
-}
+func (f *ConfirmField) viewFocused() string { return f.renderView(true) }
+func (f *ConfirmField) viewBlurred() string { return f.renderView(false) }
 
 func (f *ConfirmField) Focus() tea.Cmd {
 	f.focused = true
@@ -520,8 +500,7 @@ func (f *ConfirmField) Blur() {
 	f.focused = false
 }
 
-func (f *ConfirmField) Visible() bool   { return true }
-func (f *ConfirmField) Focusable() bool { return true }
+func (f *ConfirmField) Visible() bool { return true }
 
 func (f *ConfirmField) Validate() string { return "" }
 
@@ -537,12 +516,13 @@ func (f *ConfirmField) Height() int {
 // DrillDownField は現在の値を表示し、Enterでドリルダウンに遷移する読み取り専用フィールド
 type DrillDownField struct {
 	title     string
+	kind      detailKind    // ドリルダウン画面の種類
 	summaryFn func() string // 現在値のサマリーを返す
 	focused   bool
 }
 
-func NewDrillDownField(title string, summaryFn func() string) *DrillDownField {
-	return &DrillDownField{title: title, summaryFn: summaryFn}
+func NewDrillDownField(title string, kind detailKind, summaryFn func() string) *DrillDownField {
+	return &DrillDownField{title: title, kind: kind, summaryFn: summaryFn}
 }
 
 func (f *DrillDownField) Update(tea.Msg) (Field, tea.Cmd) { return f, nil }
@@ -583,8 +563,7 @@ func (f *DrillDownField) View() string {
 
 func (f *DrillDownField) Focus() tea.Cmd { f.focused = true; return nil }
 func (f *DrillDownField) Blur()          { f.focused = false }
-func (f *DrillDownField) Visible() bool   { return true }
-func (f *DrillDownField) Focusable() bool { return true }
+func (f *DrillDownField) Visible() bool { return true }
 func (f *DrillDownField) Validate() string { return "" }
 
 func (f *DrillDownField) Height() int {
