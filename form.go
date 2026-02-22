@@ -11,24 +11,40 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// formState はフォーム入力用のローカル変数をまとめた構造体。
+// Configへの変換前の中間状態を保持する。
+type formState struct {
+	processType    string
+	keepAlive      string
+	scheduleType   string
+	logType        string
+	intervalStr    string
+	minuteStr      string
+	hourStr        string
+	dayStr         string
+	monthStr       string
+	weekdayStr     string
+	enableEnvVars  bool
+	envVarsStr     string
+}
+
 // RunForm はTUIフォームを表示し、入力結果をConfigとして返す
 func RunForm() (*Config, error) {
-	c := &Config{
-		RunAtLoad: true,
+	c := &Config{RunAtLoad: true}
+	s := &formState{}
+	form := buildForm(c, s)
+	if err := form.WithTheme(formTheme()).Run(); err != nil {
+		return nil, err
 	}
+	applyFormValues(c, s)
+	return c, nil
+}
 
-	var processType string
-	var keepAlive string
-	var scheduleType string
-	var logType string
-	var intervalStr string
-	var minuteStr, hourStr, dayStr, monthStr, weekdayStr string
-	var enableEnvVars bool
-	var envVarsStr string
-
-	theme := formTheme()
-
-	form := huh.NewForm(
+// buildForm はフォーム入力用のhuh.Formを構築する。
+// cとsのフィールドへのポインタをフォームにバインドするため、
+// フォームを再構築しても既存の値が保持される。
+func buildForm(c *Config, s *formState) *huh.Form {
+	return huh.NewForm(
 		// グループ1: 基本設定
 		huh.NewGroup(
 			huh.NewInput().
@@ -56,7 +72,7 @@ func RunForm() (*Config, error) {
 			huh.NewConfirm().
 				Title("環境変数").
 				Description("環境変数を設定する").
-				Value(&enableEnvVars),
+				Value(&s.enableEnvVars),
 		),
 
 		// グループ1.5: 環境変数入力（条件付き）
@@ -65,9 +81,9 @@ func RunForm() (*Config, error) {
 				Title("環境変数").
 				Description("KEY=VALUE 形式で1行ずつ入力").
 				Lines(8).
-				Value(&envVarsStr),
+				Value(&s.envVarsStr),
 		).WithHideFunc(func() bool {
-			return !enableEnvVars
+			return !s.enableEnvVars
 		}),
 
 		// グループ2: スケジュール
@@ -84,7 +100,7 @@ func RunForm() (*Config, error) {
 					huh.NewOption("Interval（秒指定）", "interval"),
 					huh.NewOption("Calendar（日時指定）", "calendar"),
 				).
-				Value(&scheduleType),
+				Value(&s.scheduleType),
 		),
 
 		// グループ2.5: Interval入力（条件付き）
@@ -92,19 +108,19 @@ func RunForm() (*Config, error) {
 			huh.NewInput().
 				Title("StartInterval").
 				Description("実行間隔（秒）。空欄でスキップ").
-				Value(&intervalStr).
-				Validate(func(s string) error {
-					if s == "" {
+				Value(&s.intervalStr).
+				Validate(func(str string) error {
+					if str == "" {
 						return nil
 					}
-					n, err := strconv.Atoi(s)
+					n, err := strconv.Atoi(str)
 					if err != nil || n <= 0 {
 						return fmt.Errorf("正の整数を入力してください")
 					}
 					return nil
 				}),
 		).WithHideFunc(func() bool {
-			return scheduleType != "interval"
+			return s.scheduleType != "interval"
 		}),
 
 		// グループ2.6: Calendar入力（条件付き）
@@ -112,29 +128,29 @@ func RunForm() (*Config, error) {
 			huh.NewInput().
 				Title("分 (Minute)").
 				Description("0-59（空欄=毎分）").
-				Value(&minuteStr),
+				Value(&s.minuteStr),
 
 			huh.NewInput().
 				Title("時 (Hour)").
 				Description("0-23（空欄=毎時）").
-				Value(&hourStr),
+				Value(&s.hourStr),
 
 			huh.NewInput().
 				Title("日 (Day)").
 				Description("1-31（空欄=毎日）").
-				Value(&dayStr),
+				Value(&s.dayStr),
 
 			huh.NewInput().
 				Title("月 (Month)").
 				Description("1-12（空欄=毎月）").
-				Value(&monthStr),
+				Value(&s.monthStr),
 
 			huh.NewInput().
 				Title("曜日 (Weekday)").
 				Description("0=日, 1=月, ..., 6=土（空欄=毎日）").
-				Value(&weekdayStr),
+				Value(&s.weekdayStr),
 		).WithHideFunc(func() bool {
-			return scheduleType != "calendar"
+			return s.scheduleType != "calendar"
 		}),
 
 		// グループ3: プロセス設定
@@ -147,7 +163,7 @@ func RunForm() (*Config, error) {
 					huh.NewOption("Background（リソース制限あり）", "Background"),
 					huh.NewOption("Interactive（リソース制限なし）", "Interactive"),
 				).
-				Value(&processType),
+				Value(&s.processType),
 
 			huh.NewSelect[string]().
 				Title("KeepAlive").
@@ -156,7 +172,7 @@ func RunForm() (*Config, error) {
 					huh.NewOption("常に再起動", "always"),
 					huh.NewOption("異常終了時のみ再起動", "on_failure"),
 				).
-				Value(&keepAlive),
+				Value(&s.keepAlive),
 		),
 
 		// グループ4: ログ出力
@@ -169,7 +185,7 @@ func RunForm() (*Config, error) {
 					huh.NewOption("stdoutのみ", "stdout"),
 					huh.NewOption("stderrのみ", "stderr"),
 				).
-				Value(&logType),
+				Value(&s.logType),
 		),
 
 		// グループ4.5: stdout+stderrパス（条件付き）
@@ -186,7 +202,7 @@ func RunForm() (*Config, error) {
 				Description("stderr出力先（空欄の場合: stdoutと同じ）").
 				Value(&c.StderrPath),
 		).WithHideFunc(func() bool {
-			return logType != "both"
+			return s.logType != "both"
 		}),
 
 		// グループ4.6: stdoutのみパス（条件付き）
@@ -198,7 +214,7 @@ func RunForm() (*Config, error) {
 				}, c).
 				Value(&c.StdoutPath),
 		).WithHideFunc(func() bool {
-			return logType != "stdout"
+			return s.logType != "stdout"
 		}),
 
 		// グループ4.7: stderrのみパス（条件付き）
@@ -210,14 +226,13 @@ func RunForm() (*Config, error) {
 				}, c).
 				Value(&c.StderrPath),
 		).WithHideFunc(func() bool {
-			return logType != "stderr"
+			return s.logType != "stderr"
 		}),
 	)
+}
 
-	if err := form.WithTheme(theme).Run(); err != nil {
-		return nil, err
-	}
-
+// applyFormValues はフォームの入力値（formState）をConfigに反映する
+func applyFormValues(c *Config, s *formState) {
 	// Labelが空欄ならProgramのベース名を使用
 	if c.Label == "" {
 		fields := strings.Fields(c.Program)
@@ -226,23 +241,24 @@ func RunForm() (*Config, error) {
 		}
 	}
 
-	// ローカル変数をConfigに反映
-	c.ProcessType = ProcessType(processType)
-	c.KeepAlive = KeepAliveType(keepAlive)
-	c.ScheduleType = ScheduleType(scheduleType)
-	if scheduleType == "interval" && intervalStr != "" {
-		n, _ := strconv.Atoi(intervalStr)
+	c.ProcessType = ProcessType(s.processType)
+	c.KeepAlive = KeepAliveType(s.keepAlive)
+	c.ScheduleType = ScheduleType(s.scheduleType)
+
+	if s.scheduleType == "interval" && s.intervalStr != "" {
+		n, _ := strconv.Atoi(s.intervalStr)
 		c.StartInterval = n
-	} else if scheduleType == "interval" && intervalStr == "" {
+	} else if s.scheduleType == "interval" && s.intervalStr == "" {
 		c.ScheduleType = ScheduleNone
 	}
-	if scheduleType == "calendar" {
+
+	if s.scheduleType == "calendar" {
 		ci := CalendarInterval{
-			Minute:  parseOptionalInt(minuteStr),
-			Hour:    parseOptionalInt(hourStr),
-			Day:     parseOptionalInt(dayStr),
-			Month:   parseOptionalInt(monthStr),
-			Weekday: parseOptionalInt(weekdayStr),
+			Minute:  parseOptionalInt(s.minuteStr),
+			Hour:    parseOptionalInt(s.hourStr),
+			Day:     parseOptionalInt(s.dayStr),
+			Month:   parseOptionalInt(s.monthStr),
+			Weekday: parseOptionalInt(s.weekdayStr),
 		}
 		if ci.HasValue() {
 			c.Calendar = ci
@@ -250,14 +266,16 @@ func RunForm() (*Config, error) {
 			c.ScheduleType = ScheduleNone
 		}
 	}
-	if enableEnvVars {
-		c.EnvironmentVars = parseEnvVars(envVarsStr)
+
+	if s.enableEnvVars {
+		c.EnvironmentVars = parseEnvVars(s.envVarsStr)
 	}
+
 	defaultLogPath := func() string {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, "Library", "Logs", c.Label+".log")
 	}
-	switch logType {
+	switch s.logType {
 	case "both":
 		if c.StdoutPath == "" {
 			c.StdoutPath = defaultLogPath()
@@ -281,8 +299,6 @@ func RunForm() (*Config, error) {
 	}
 	c.StdoutPath = toAbsPath(c.StdoutPath)
 	c.StderrPath = toAbsPath(c.StderrPath)
-
-	return c, nil
 }
 
 // formTheme はフォーカス状態を強調するカスタムテーマを返す
