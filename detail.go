@@ -54,9 +54,9 @@ func newDetailModel(kind detailKind, c *Config, s *formState, width, height int)
 	case detailEnvVars:
 		m.textarea = buildEnvVarsTextarea(s, width)
 	case detailStdoutPath:
-		m.fields, m.labels = buildLogPathField(c.StdoutPath, c.Label)
+		m.fields, m.labels = buildLogPathField(s.stdoutPath, c.Label)
 	case detailStderrPath:
-		m.fields, m.labels = buildLogPathField(c.StderrPath, c.Label)
+		m.fields, m.labels = buildLogPathField(s.stderrPath, c.Label)
 	}
 
 	return m
@@ -242,11 +242,11 @@ func (m *detailModel) applyFieldValues() {
 		}
 	case detailStdoutPath:
 		if len(m.fields) > 0 {
-			m.config.StdoutPath = m.fields[0].Value()
+			m.state.stdoutPath = m.fields[0].Value()
 		}
 	case detailStderrPath:
 		if len(m.fields) > 0 {
-			m.config.StderrPath = m.fields[0].Value()
+			m.state.stderrPath = m.fields[0].Value()
 		}
 	}
 }
