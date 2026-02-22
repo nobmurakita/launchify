@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -449,7 +450,7 @@ func scheduleOptionDetail(s *formState, optionValue string) string {
 }
 
 // applyFormValues はフォームの入力値（formState）をConfigに反映する
-func applyFormValues(c *Config, s *formState) {
+func applyFormValues(c *Config, s *formState) error {
 	// Programが空欄ならLabelの末尾を使用
 	if c.Program == "" && c.Label != "" {
 		parts := strings.Split(c.Label, ".")
@@ -484,21 +485,38 @@ func applyFormValues(c *Config, s *formState) {
 
 	c.EnvironmentVars = parseEnvVars(s.envVarsStr)
 
-	c.StdoutPath = toAbsPath(s.stdoutPath)
-	c.StderrPath = toAbsPath(s.stderrPath)
+	stdoutPath, err := toAbsPath(s.stdoutPath)
+	if err != nil {
+		return err
+	}
+	c.StdoutPath = stdoutPath
+
+	stderrPath, err := toAbsPath(s.stderrPath)
+	if err != nil {
+		return err
+	}
+	c.StderrPath = stderrPath
+
+	return nil
 }
 
 // toAbsPath は~展開と絶対パス変換を行う。空文字列はそのまま返す。
-func toAbsPath(path string) string {
+func toAbsPath(path string) (string, error) {
 	if path == "" {
-		return ""
+		return "", nil
 	}
 	if strings.HasPrefix(path, "~/") {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("ホームディレクトリの取得に失敗: %w", err)
+		}
 		path = filepath.Join(home, path[2:])
 	}
-	path, _ = filepath.Abs(path)
-	return path
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("絶対パスの解決に失敗: %w", err)
+	}
+	return abs, nil
 }
 
 // parseEnvVars は "KEY=VALUE\nKEY2=VALUE2" 形式の文字列をmapに変換する

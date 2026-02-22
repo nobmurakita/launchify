@@ -92,7 +92,10 @@ func (m appModel) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m appModel) submitForm() (tea.Model, tea.Cmd) {
 	m.form.errMsg = "" // 前回のエラーをクリア
 
-	applyFormValues(m.config, m.state)
+	if err := applyFormValues(m.config, m.state); err != nil {
+		m.form.errMsg = err.Error()
+		return m, nil
+	}
 
 	// プログラムのパス解決
 	resolved, err := resolveProgram(m.config.Program)

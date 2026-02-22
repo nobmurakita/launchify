@@ -27,6 +27,7 @@ func PlistPath(label string) (string, error) {
 
 // Install はplist XMLをファイルに書き出し、launchctl load を実行する。
 // 既存ファイルがある場合はパス指定でアンロードしてから上書きする。
+// TODO: launchctl load/unload は macOS 10.10 以降非推奨。将来的に bootstrap/bootout への移行を検討。
 func Install(label, plistXML string) error {
 	path, err := PlistPath(label)
 	if err != nil {
