@@ -26,7 +26,7 @@ launchify
 
 TUIフォームが起動し、以下の項目を順に入力する:
 
-1. **基本設定** — Program（実行コマンド+引数）、Label（識別子）、WorkingDirectory
+1. **基本設定** — Label（識別子）、Program（実行コマンド+引数）、WorkingDirectory
 2. **環境変数** — `KEY=VALUE` 形式で指定（任意）
 3. **実行設定** — ProcessType、RunAtLoad、KeepAlive、スケジュール（Interval / Calendar）
 4. **ログ出力** — stdout/stderrそれぞれのファイルパス（初期値: `~/Library/Logs/<Label>.log`）
