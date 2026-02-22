@@ -191,9 +191,12 @@ func (m formModel) handleAdvance(drillDown bool) (formModel, tea.Cmd) {
 		}
 	}
 
-	// バリデーションチェック
+	// バリデーションチェック（エラー時はフィールドにエラー表示を指示）
 	if m.focused < len(visible) {
 		if errMsg := visible[m.focused].Validate(); errMsg != "" {
+			if tf, ok := visible[m.focused].(*TextInputField); ok {
+				tf.showError = true
+			}
 			return m, nil
 		}
 	}
