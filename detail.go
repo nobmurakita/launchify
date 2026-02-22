@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -10,6 +11,9 @@ import (
 
 // envVarsTextareaHeight は環境変数テキストエリアのデフォルト高さ
 const envVarsTextareaHeight = 8
+
+// defaultLogPathFormat はログファイルのデフォルトパス書式
+const defaultLogPathFormat = "~/Library/Logs/%s.log"
 
 // カレンダーフィールドのインデックス
 const (
@@ -92,7 +96,7 @@ func buildIntervalFields(s *formState) ([]textinput.Model, []string) {
 	ti.Placeholder = "例: 300"
 	ti.SetValue(s.intervalStr)
 	ti.Focus()
-	ti.Prompt = "  "
+	ti.Prompt = fieldPrompt
 	ti.Cursor.Style = focusedCursorStyle
 	return []textinput.Model{ti}, []string{"StartInterval（秒）"}
 }
@@ -124,7 +128,7 @@ func buildCalendarFields(s *formState) ([]textinput.Model, []string) {
 		ti := textinput.New()
 		ti.Placeholder = placeholders[i]
 		ti.SetValue(val)
-		ti.Prompt = "  "
+		ti.Prompt = fieldPrompt
 		ti.Cursor.Style = focusedCursorStyle
 		if i == 0 {
 			ti.Focus()
@@ -137,13 +141,13 @@ func buildCalendarFields(s *formState) ([]textinput.Model, []string) {
 func buildLogPathField(currentPath, label string) ([]textinput.Model, []string) {
 	val := currentPath
 	if val == "" {
-		val = "~/Library/Logs/" + label + ".log"
+		val = fmt.Sprintf(defaultLogPathFormat, label)
 	}
 	ti := textinput.New()
 	ti.Placeholder = "ファイルパス"
 	ti.SetValue(val)
 	ti.Focus()
-	ti.Prompt = "  "
+	ti.Prompt = fieldPrompt
 	ti.Cursor.Style = focusedCursorStyle
 	return []textinput.Model{ti}, []string{"出力先パス"}
 }
@@ -158,7 +162,7 @@ func buildEnvVarsTextarea(s *formState, width int) textarea.Model {
 		ta.SetWidth(width - 4)
 	}
 	ta.SetHeight(envVarsTextareaHeight)
-	ta.Prompt = "  "
+	ta.Prompt = fieldPrompt
 	return ta
 }
 
@@ -225,15 +229,13 @@ func (m detailModel) handleFieldsKey(msg tea.KeyMsg) (detailModel, tea.Cmd) {
 		}
 		m.fields[m.focused].Blur()
 		m.focused++
-		cmd := m.fields[m.focused].Focus()
-		return m, cmd
+		return m, m.fields[m.focused].Focus()
 
 	case "shift+tab":
 		if m.focused > 0 {
 			m.fields[m.focused].Blur()
 			m.focused--
-			cmd := m.fields[m.focused].Focus()
-			return m, cmd
+			return m, m.fields[m.focused].Focus()
 		}
 		return m, nil
 	}
@@ -286,36 +288,14 @@ func (m *detailModel) applyFieldValues() {
 func (m detailModel) View() string {
 	var b strings.Builder
 
-	// タイトル
 	b.WriteString(detailTitleStyle.Render(m.title))
 	b.WriteString("\n\n")
 
-	// 入力フィールド
 	if m.kind == detailEnvVars {
 		b.WriteString(m.textarea.View())
 	} else {
 		for i, f := range m.fields {
-			label := m.labels[i]
-			if i == m.focused {
-				b.WriteString(focusedTitleStyle.Render(label))
-				b.WriteString("\n")
-				b.WriteString(f.View())
-			} else {
-				val := f.Value()
-				style := blurredValueStyle
-				if val == "" {
-					val = f.Placeholder
-					style = blurredMutedStyle
-				}
-				if val == "" {
-					val = "-"
-					style = blurredMutedStyle
-				}
-				b.WriteString(blurredTitleStyle.Render(label))
-				b.WriteString("\n")
-				b.WriteString("  ")
-				b.WriteString(style.Render(val))
-			}
+			b.WriteString(m.renderDetailField(f, m.labels[i], i == m.focused))
 			if i < len(m.fields)-1 {
 				b.WriteString("\n")
 			}
@@ -325,5 +305,31 @@ func (m detailModel) View() string {
 	b.WriteString("\n\n")
 	b.WriteString(detailFooterStyle.Render(m.footer))
 
+	return b.String()
+}
+
+// renderDetailField は個々のフィールドを描画する
+func (m detailModel) renderDetailField(f textinput.Model, label string, focused bool) string {
+	var b strings.Builder
+	if focused {
+		b.WriteString(focusedTitleStyle.Render(label))
+		b.WriteString("\n")
+		b.WriteString(f.View())
+	} else {
+		val := f.Value()
+		style := blurredValueStyle
+		if val == "" {
+			val = f.Placeholder
+			style = blurredMutedStyle
+		}
+		if val == "" {
+			val = "-"
+			style = blurredMutedStyle
+		}
+		b.WriteString(blurredTitleStyle.Render(label))
+		b.WriteString("\n")
+		b.WriteString("  ")
+		b.WriteString(style.Render(val))
+	}
 	return b.String()
 }

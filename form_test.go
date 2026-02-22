@@ -108,7 +108,7 @@ func TestFormModel_SubmitOnLastField(t *testing.T) {
 
 	// アクションボタン（最後のvisibleフィールド）にフォーカスを移動
 	visible := m.visibleFields()
-	m.FocusField(len(visible) - 1)
+	m.focusVisibleFieldAt(len(visible) - 1)
 
 	// Enter でformSubmitMsgが発行される（ボタンの確定はEnterのみ）
 	var resultCmd tea.Cmd
@@ -130,20 +130,20 @@ func TestFormModel_DrillDownOnScheduleInterval(t *testing.T) {
 	m.width = 80
 	m.height = 40
 
-	// onEnterFnが設定されたSelectFieldを見つけてフォーカス
+	// onDrillDownFnが設定されたSelectFieldを見つけてフォーカス
 	visible := m.visibleFields()
 	schedIdx := -1
 	for i, f := range visible {
-		if sf, ok := f.(*SelectField); ok && sf.onEnterFn != nil {
+		if sf, ok := f.(*SelectField); ok && sf.onDrillDownFn != nil {
 			schedIdx = i
 			break
 		}
 	}
 	if schedIdx < 0 {
-		t.Fatal("onEnterFn付きSelectFieldが見つからない")
+		t.Fatal("onDrillDownFn付きSelectFieldが見つからない")
 	}
 
-	m.FocusField(schedIdx)
+	m.focusVisibleFieldAt(schedIdx)
 
 	// interval が選択されている状態でEnter → openDetailMsg
 	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
