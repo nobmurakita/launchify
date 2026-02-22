@@ -36,6 +36,7 @@ type TextInputField struct {
 	visibleFn   func() bool
 	defaultFn  func() string // 動的デフォルト値（nilなら固定）
 	validateFn func(string) string
+	showError  bool // バリデーションエラーの表示フラグ（移動試行時にtrueになる）
 }
 
 // TextInputOption はTextInputFieldの設定関数
@@ -78,6 +79,9 @@ func NewTextInputField(title, description string, value *string, opts ...TextInp
 func (f *TextInputField) Value() string { return f.model.Value() }
 
 func (f *TextInputField) Update(msg tea.Msg) (Field, tea.Cmd) {
+	if _, ok := msg.(tea.KeyMsg); ok {
+		f.showError = false
+	}
 	var cmd tea.Cmd
 	f.model, cmd = f.model.Update(msg)
 	// バインド先へ値を同期
@@ -103,9 +107,11 @@ func (f *TextInputField) viewFocused() string {
 	}
 	b.WriteString("\n")
 	b.WriteString(f.model.View())
-	if errMsg := f.Validate(); errMsg != "" {
-		b.WriteString("\n")
-		b.WriteString(errorStyle.Render("  " + errMsg))
+	if f.showError {
+		if errMsg := f.Validate(); errMsg != "" {
+			b.WriteString("\n")
+			b.WriteString(errorStyle.Render("  " + errMsg))
+		}
 	}
 	return b.String()
 }
@@ -169,7 +175,7 @@ func (f *TextInputField) Validate() string {
 
 func (f *TextInputField) Height() int {
 	h := 2 // title + input
-	if f.focused && f.Validate() != "" {
+	if f.focused && f.showError && f.Validate() != "" {
 		h++
 	}
 	return h
