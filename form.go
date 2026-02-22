@@ -22,7 +22,9 @@ type formState struct {
 	dayStr        string
 	monthStr      string
 	weekdayStr    string
-	envVarsStr    string
+	envVarsStr     string
+	stdoutPath     string
+	stderrPath     string
 }
 
 // formSubmitMsg はフォーム送信時に発行されるメッセージ
@@ -122,12 +124,12 @@ func (m *formModel) buildFields() []Field {
 
 		// 9. StandardOutPath（ドリルダウンでパス編集）
 		NewDrillDownField("StandardOutPath", func() string {
-			return c.StdoutPath
+			return s.stdoutPath
 		}),
 
 		// 10. StandardErrorPath（ドリルダウンでパス編集）
 		NewDrillDownField("StandardErrorPath", func() string {
-			return c.StderrPath
+			return s.stderrPath
 		}),
 
 		// 11. アクション選択
@@ -502,8 +504,8 @@ func applyFormValues(c *Config, s *formState) {
 
 	c.EnvironmentVars = parseEnvVars(s.envVarsStr)
 
-	c.StdoutPath = toAbsPath(c.StdoutPath)
-	c.StderrPath = toAbsPath(c.StderrPath)
+	c.StdoutPath = toAbsPath(s.stdoutPath)
+	c.StderrPath = toAbsPath(s.stderrPath)
 }
 
 // toAbsPath は~展開と絶対パス変換を行う。空文字列はそのまま返す。

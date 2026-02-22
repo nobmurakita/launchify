@@ -157,6 +157,52 @@ func TestDetailModel_View_Calendar(t *testing.T) {
 	}
 }
 
+func TestDetailModel_StdoutPath_Confirm(t *testing.T) {
+	c := &Config{Label: "test"}
+	s := &formState{}
+	m := newDetailModel(detailStdoutPath, c, s, 80, 24)
+	m.Init()
+
+	// 値をクリアして新しい値を入力
+	// textinput は既にデフォルト値が入っているのでまずクリアする必要がある
+	for range m.fields[0].Value() {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/tmp/out.log")})
+
+	// Enter で確定
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected detailDoneMsg cmd")
+	}
+	msg := cmd()
+	if _, ok := msg.(detailDoneMsg); !ok {
+		t.Fatalf("expected detailDoneMsg, got %T", msg)
+	}
+	// formStateに値が保持される（Configではなく）
+	if s.stdoutPath != "/tmp/out.log" {
+		t.Errorf("stdoutPath = %q, want %q", s.stdoutPath, "/tmp/out.log")
+	}
+}
+
+func TestDetailModel_StdoutPath_Cancel(t *testing.T) {
+	c := &Config{Label: "test"}
+	s := &formState{stdoutPath: "existing"}
+	m := newDetailModel(detailStdoutPath, c, s, 80, 24)
+	m.Init()
+
+	// Esc でキャンセル
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEscape})
+	msg := cmd()
+	dm := msg.(detailDoneMsg)
+	if !dm.cancelled {
+		t.Error("should be cancelled")
+	}
+	if s.stdoutPath != "existing" {
+		t.Errorf("stdoutPath should remain %q, got %q", "existing", s.stdoutPath)
+	}
+}
+
 func TestDetailModel_View_EnvVars(t *testing.T) {
 	s := &formState{}
 	m := newDetailModel(detailEnvVars, &Config{}, s, 80, 24)
