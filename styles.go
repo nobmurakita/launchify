@@ -58,6 +58,6 @@ var (
 	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#dc2626", Dark: "#f87171"})
 
 	// ドリルダウン画面用
-	detailTitleStyle = lipgloss.NewStyle().Foreground(cyan).Bold(true)
+	detailTitleStyle  = lipgloss.NewStyle().Foreground(cyan).Bold(true)
 	detailFooterStyle = lipgloss.NewStyle().Foreground(dimGray)
 )

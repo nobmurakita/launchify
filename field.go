@@ -34,9 +34,9 @@ type TextInputField struct {
 	required    bool
 	focused     bool
 	visibleFn   func() bool
-	defaultFn  func() string // 動的デフォルト値（nilなら固定）
-	validateFn func(string) string
-	showError  bool // バリデーションエラーの表示フラグ（移動試行時にtrueになる）
+	defaultFn   func() string // 動的デフォルト値（nilなら固定）
+	validateFn  func(string) string
+	showError   bool // バリデーションエラーの表示フラグ（移動試行時にtrueになる）
 }
 
 // TextInputOption はTextInputFieldの設定関数
@@ -538,9 +538,9 @@ func (f *DrillDownField) View() string {
 	return b.String()
 }
 
-func (f *DrillDownField) Focus() tea.Cmd { f.focused = true; return nil }
-func (f *DrillDownField) Blur()          { f.focused = false }
-func (f *DrillDownField) Visible() bool { return true }
+func (f *DrillDownField) Focus() tea.Cmd   { f.focused = true; return nil }
+func (f *DrillDownField) Blur()            { f.focused = false }
+func (f *DrillDownField) Visible() bool    { return true }
 func (f *DrillDownField) Validate() string { return "" }
 
 func (f *DrillDownField) Height() int {

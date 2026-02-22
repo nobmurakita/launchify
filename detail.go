@@ -48,8 +48,8 @@ type detailDoneMsg struct {
 // detailModel はドリルダウン画面のモデル
 type detailModel struct {
 	kind     detailKind
-	title    string         // 画面タイトル
-	footer   string         // フッターテキスト
+	title    string // 画面タイトル
+	footer   string // フッターテキスト
 	config   *Config
 	state    *formState
 	fields   []textinput.Model // Interval/Calendar 用

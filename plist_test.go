@@ -306,4 +306,3 @@ func TestGeneratePlist_EnvVarsSorted(t *testing.T) {
 		t.Errorf("env vars not sorted: APPLE=%d, MANGO=%d, ZEBRA=%d", appleIdx, mangoIdx, zebraIdx)
 	}
 }
-
