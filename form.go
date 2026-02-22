@@ -175,7 +175,7 @@ func (m formModel) Update(msg tea.Msg) (formModel, tea.Cmd) {
 
 func (m formModel) handleKey(msg tea.KeyMsg) (formModel, tea.Cmd) {
 	// キー操作時にエラーメッセージをクリア
-	m.errMsg = ""
+	m.setError("")
 
 	switch msg.String() {
 	case "enter":
