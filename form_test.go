@@ -231,3 +231,191 @@ func TestFormModel_SelectFieldInitialValues(t *testing.T) {
 		t.Error("keepAlive should be initialized to first option value")
 	}
 }
+
+func TestParseEnvVars(t *testing.T) {
+	got := parseEnvVars("PATH=/usr/local/bin\nHOME=/Users/test")
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2", len(got))
+	}
+	if got["PATH"] != "/usr/local/bin" {
+		t.Errorf("PATH: got %q, want /usr/local/bin", got["PATH"])
+	}
+	if got["HOME"] != "/Users/test" {
+		t.Errorf("HOME: got %q, want /Users/test", got["HOME"])
+	}
+}
+
+func TestParseEnvVars_Empty(t *testing.T) {
+	got := parseEnvVars("")
+	if got != nil {
+		t.Errorf("got %v, want nil", got)
+	}
+}
+
+func TestParseEnvVars_WithSpaces(t *testing.T) {
+	got := parseEnvVars("  KEY = VALUE  \n\n  KEY2=VALUE2  \n")
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2", len(got))
+	}
+	if got["KEY"] != "VALUE" {
+		t.Errorf("KEY: got %q, want VALUE", got["KEY"])
+	}
+}
+
+func TestApplyFormValues_Basic(t *testing.T) {
+	c := &Config{
+		Label:   "com.test.app",
+		Program: "/usr/bin/test",
+	}
+	s := &formState{
+		processType:  "Background",
+		keepAlive:    "always",
+		scheduleType: "none",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ProcessType != ProcessBackground {
+		t.Errorf("ProcessType = %q, want %q", c.ProcessType, ProcessBackground)
+	}
+	if c.KeepAlive != KeepAliveAlways {
+		t.Errorf("KeepAlive = %q, want %q", c.KeepAlive, KeepAliveAlways)
+	}
+	if c.ScheduleType != ScheduleNone {
+		t.Errorf("ScheduleType = %q, want %q", c.ScheduleType, ScheduleNone)
+	}
+}
+
+func TestApplyFormValues_IntervalWithValue(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		scheduleType: "interval",
+		intervalStr:  "300",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ScheduleType != ScheduleInterval {
+		t.Errorf("ScheduleType = %q, want %q", c.ScheduleType, ScheduleInterval)
+	}
+	if c.StartInterval != 300 {
+		t.Errorf("StartInterval = %d, want 300", c.StartInterval)
+	}
+}
+
+func TestApplyFormValues_IntervalEmpty_FallsBackToNone(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		scheduleType: "interval",
+		intervalStr:  "",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ScheduleType != ScheduleNone {
+		t.Errorf("ScheduleType = %q, want %q (empty interval should fallback)", c.ScheduleType, ScheduleNone)
+	}
+}
+
+func TestApplyFormValues_CalendarWithValues(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		scheduleType: "calendar",
+		hourStr:      "9",
+		minuteStr:    "30",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ScheduleType != ScheduleCalendar {
+		t.Errorf("ScheduleType = %q, want %q", c.ScheduleType, ScheduleCalendar)
+	}
+	if c.Calendar.Hour == nil || *c.Calendar.Hour != 9 {
+		t.Errorf("Calendar.Hour = %v, want 9", c.Calendar.Hour)
+	}
+	if c.Calendar.Minute == nil || *c.Calendar.Minute != 30 {
+		t.Errorf("Calendar.Minute = %v, want 30", c.Calendar.Minute)
+	}
+}
+
+func TestApplyFormValues_CalendarEmpty_FallsBackToNone(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		scheduleType: "calendar",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ScheduleType != ScheduleNone {
+		t.Errorf("ScheduleType = %q, want %q (empty calendar should fallback)", c.ScheduleType, ScheduleNone)
+	}
+}
+
+func TestApplyFormValues_ProgramDefaultFromLabel(t *testing.T) {
+	c := &Config{Label: "com.user.mytool", Program: ""}
+	s := &formState{}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Program != "mytool" {
+		t.Errorf("Program = %q, want %q", c.Program, "mytool")
+	}
+}
+
+func TestApplyFormValues_EnvVars(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		envVarsStr: "PATH=/usr/bin\nHOME=/Users/test",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.EnvironmentVars) != 2 {
+		t.Fatalf("EnvironmentVars count = %d, want 2", len(c.EnvironmentVars))
+	}
+	if c.EnvironmentVars["PATH"] != "/usr/bin" {
+		t.Errorf("PATH = %q", c.EnvironmentVars["PATH"])
+	}
+}
+
+func TestApplyFormValues_LogPaths(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		stdoutPath: "/tmp/stdout.log",
+		stderrPath: "/tmp/stderr.log",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.StdoutPath != "/tmp/stdout.log" {
+		t.Errorf("StdoutPath = %q, want /tmp/stdout.log", c.StdoutPath)
+	}
+	if c.StderrPath != "/tmp/stderr.log" {
+		t.Errorf("StderrPath = %q, want /tmp/stderr.log", c.StderrPath)
+	}
+}
+
+func TestApplyFormValues_TildeExpansion(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		stdoutPath: "~/logs/test.log",
+	}
+	err := applyFormValues(c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(c.StdoutPath, "~/") {
+		t.Errorf("StdoutPath should expand tilde, got %q", c.StdoutPath)
+	}
+	if !strings.HasSuffix(c.StdoutPath, "/logs/test.log") {
+		t.Errorf("StdoutPath should end with /logs/test.log, got %q", c.StdoutPath)
+	}
+}
