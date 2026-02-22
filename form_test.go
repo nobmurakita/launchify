@@ -290,6 +290,8 @@ func TestApplyFormValues_Basic(t *testing.T) {
 func TestApplyFormValues_IntervalWithValue(t *testing.T) {
 	c := &Config{Label: "test", Program: "/bin/test"}
 	s := &formState{
+		processType:  "Standard",
+		keepAlive:    "none",
 		scheduleType: "interval",
 		intervalStr:  "300",
 	}
@@ -308,6 +310,8 @@ func TestApplyFormValues_IntervalWithValue(t *testing.T) {
 func TestApplyFormValues_IntervalEmpty_FallsBackToNone(t *testing.T) {
 	c := &Config{Label: "test", Program: "/bin/test"}
 	s := &formState{
+		processType:  "Standard",
+		keepAlive:    "none",
 		scheduleType: "interval",
 		intervalStr:  "",
 	}
@@ -323,6 +327,8 @@ func TestApplyFormValues_IntervalEmpty_FallsBackToNone(t *testing.T) {
 func TestApplyFormValues_CalendarWithValues(t *testing.T) {
 	c := &Config{Label: "test", Program: "/bin/test"}
 	s := &formState{
+		processType:  "Standard",
+		keepAlive:    "none",
 		scheduleType: "calendar",
 		hourStr:      "9",
 		minuteStr:    "30",
@@ -345,6 +351,8 @@ func TestApplyFormValues_CalendarWithValues(t *testing.T) {
 func TestApplyFormValues_CalendarEmpty_FallsBackToNone(t *testing.T) {
 	c := &Config{Label: "test", Program: "/bin/test"}
 	s := &formState{
+		processType:  "Standard",
+		keepAlive:    "none",
 		scheduleType: "calendar",
 	}
 	err := applyFormValues(c, s)
@@ -358,7 +366,11 @@ func TestApplyFormValues_CalendarEmpty_FallsBackToNone(t *testing.T) {
 
 func TestApplyFormValues_ProgramDefaultFromLabel(t *testing.T) {
 	c := &Config{Label: "com.user.mytool", Program: ""}
-	s := &formState{}
+	s := &formState{
+		processType:  "Standard",
+		keepAlive:    "none",
+		scheduleType: "none",
+	}
 	err := applyFormValues(c, s)
 	if err != nil {
 		t.Fatal(err)
@@ -371,7 +383,10 @@ func TestApplyFormValues_ProgramDefaultFromLabel(t *testing.T) {
 func TestApplyFormValues_EnvVars(t *testing.T) {
 	c := &Config{Label: "test", Program: "/bin/test"}
 	s := &formState{
-		envVarsStr: "PATH=/usr/bin\nHOME=/Users/test",
+		processType:  "Standard",
+		keepAlive:    "none",
+		scheduleType: "none",
+		envVarsStr:   "PATH=/usr/bin\nHOME=/Users/test",
 	}
 	err := applyFormValues(c, s)
 	if err != nil {
@@ -388,8 +403,11 @@ func TestApplyFormValues_EnvVars(t *testing.T) {
 func TestApplyFormValues_LogPaths(t *testing.T) {
 	c := &Config{Label: "test", Program: "/bin/test"}
 	s := &formState{
-		stdoutPath: "/tmp/stdout.log",
-		stderrPath: "/tmp/stderr.log",
+		processType:  "Standard",
+		keepAlive:    "none",
+		scheduleType: "none",
+		stdoutPath:   "/tmp/stdout.log",
+		stderrPath:   "/tmp/stderr.log",
 	}
 	err := applyFormValues(c, s)
 	if err != nil {
@@ -406,7 +424,10 @@ func TestApplyFormValues_LogPaths(t *testing.T) {
 func TestApplyFormValues_TildeExpansion(t *testing.T) {
 	c := &Config{Label: "test", Program: "/bin/test"}
 	s := &formState{
-		stdoutPath: "~/logs/test.log",
+		processType:  "Standard",
+		keepAlive:    "none",
+		scheduleType: "none",
+		stdoutPath:   "~/logs/test.log",
 	}
 	err := applyFormValues(c, s)
 	if err != nil {
@@ -417,5 +438,22 @@ func TestApplyFormValues_TildeExpansion(t *testing.T) {
 	}
 	if !strings.HasSuffix(c.StdoutPath, "/logs/test.log") {
 		t.Errorf("StdoutPath should end with /logs/test.log, got %q", c.StdoutPath)
+	}
+}
+
+func TestApplyFormValues_InvalidIntervalStr(t *testing.T) {
+	c := &Config{Label: "test", Program: "/bin/test"}
+	s := &formState{
+		processType:  "Standard",
+		keepAlive:    "none",
+		scheduleType: "interval",
+		intervalStr:  "abc",
+	}
+	err := applyFormValues(c, s)
+	if err == nil {
+		t.Fatal("expected error for non-numeric intervalStr")
+	}
+	if !strings.Contains(err.Error(), "StartInterval") {
+		t.Errorf("error should mention StartInterval, got: %v", err)
 	}
 }

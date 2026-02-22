@@ -193,7 +193,10 @@ func RunApp() (*Config, string, error) {
 		return nil, "", err
 	}
 
-	app := finalModel.(appModel)
+	app, ok := finalModel.(appModel)
+	if !ok {
+		return nil, "", fmt.Errorf("予期しないモデル型: %T", finalModel)
+	}
 	switch app.result {
 	case appResultInstall:
 		return app.config, app.plist, nil
@@ -206,7 +209,10 @@ func RunApp() (*Config, string, error) {
 // 既にフルパス（/で始まる）場合はそのまま返す。
 func resolveProgram(program string) (string, error) {
 	args, err := shlex.Split(program)
-	if err != nil || len(args) == 0 {
+	if err != nil {
+		return "", fmt.Errorf("コマンドの解析に失敗しました: %w", err)
+	}
+	if len(args) == 0 {
 		return program, nil
 	}
 	cmd := args[0]

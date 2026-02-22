@@ -371,10 +371,10 @@ type ConfirmField struct {
 type ConfirmFieldOption func(*ConfirmField)
 
 // WithLabels はトグルのラベルをカスタマイズする。
-func WithLabels(falseLabel, trueLabel string) ConfirmFieldOption {
+func WithLabels(trueLabel, falseLabel string) ConfirmFieldOption {
 	return func(f *ConfirmField) {
-		f.falseLabel = falseLabel
 		f.trueLabel = trueLabel
+		f.falseLabel = falseLabel
 	}
 }
 

@@ -147,7 +147,7 @@ func (m *formModel) buildFields() []Field {
 
 		// 11. アクション選択
 		NewConfirmField("アクション", "", &s.directInstall,
-			WithLabels("プレビュー", "インストール"), WithReverseOrder(), WithButtonStyle()),
+			WithLabels("インストール", "プレビュー"), WithReverseOrder(), WithButtonStyle()),
 	}
 }
 
@@ -467,12 +467,24 @@ func applyFormValues(c *Config, s *formState) error {
 		c.Program = parts[len(parts)-1]
 	}
 
+	if !validProcessType(s.processType) {
+		return fmt.Errorf("不正なProcessType: %q", s.processType)
+	}
+	if !validKeepAliveType(s.keepAlive) {
+		return fmt.Errorf("不正なKeepAliveType: %q", s.keepAlive)
+	}
+	if !validScheduleType(s.scheduleType) {
+		return fmt.Errorf("不正なScheduleType: %q", s.scheduleType)
+	}
 	c.ProcessType = ProcessType(s.processType)
 	c.KeepAlive = KeepAliveType(s.keepAlive)
 	c.ScheduleType = ScheduleType(s.scheduleType)
 
 	if s.scheduleType == string(ScheduleInterval) && s.intervalStr != "" {
-		n, _ := strconv.Atoi(s.intervalStr)
+		n, err := strconv.Atoi(s.intervalStr)
+		if err != nil {
+			return fmt.Errorf("StartIntervalの値が不正です: %q", s.intervalStr)
+		}
 		c.StartInterval = n
 	} else if s.scheduleType == string(ScheduleInterval) && s.intervalStr == "" {
 		c.ScheduleType = ScheduleNone
@@ -515,12 +527,16 @@ func toAbsPath(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}
-	if strings.HasPrefix(path, "~/") {
+	if path == "~" || strings.HasPrefix(path, "~/") {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("ホームディレクトリの取得に失敗: %w", err)
 		}
-		path = filepath.Join(home, path[2:])
+		if path == "~" {
+			path = home
+		} else {
+			path = filepath.Join(home, path[2:])
+		}
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -549,6 +565,30 @@ func parseEnvVars(s string) map[string]string {
 		return nil
 	}
 	return result
+}
+
+func validProcessType(s string) bool {
+	switch ProcessType(s) {
+	case ProcessStandard, ProcessBackground, ProcessInteractive:
+		return true
+	}
+	return false
+}
+
+func validKeepAliveType(s string) bool {
+	switch KeepAliveType(s) {
+	case KeepAliveNone, KeepAliveAlways, KeepAliveOnFailure:
+		return true
+	}
+	return false
+}
+
+func validScheduleType(s string) bool {
+	switch ScheduleType(s) {
+	case ScheduleNone, ScheduleInterval, ScheduleCalendar:
+		return true
+	}
+	return false
 }
 
 // parseOptionalInt は空文字列ならnil、数値文字列なら*intを返す
