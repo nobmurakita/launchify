@@ -92,11 +92,13 @@ func (m appModel) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m appModel) submitForm() (tea.Model, tea.Cmd) {
 	m.form.setError("")
 
+	// フォーム入力値をConfigに反映
 	if err := applyFormValues(m.config, m.state); err != nil {
 		m.form.setError(err.Error())
 		return m, nil
 	}
 
+	// プログラムのパス解決
 	resolved, err := resolveProgram(m.config.Program)
 	if err != nil {
 		m.form.setError(err.Error())
@@ -104,6 +106,7 @@ func (m appModel) submitForm() (tea.Model, tea.Cmd) {
 	}
 	m.config.Program = resolved
 
+	// plist生成
 	plist, err := GeneratePlist(m.config)
 	if err != nil {
 		m.form.setError(fmt.Sprintf("plist生成エラー: %v", err))
