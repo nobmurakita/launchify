@@ -22,18 +22,17 @@ func TestFormModel_LogPathDrillDownFields(t *testing.T) {
 	s := &formState{}
 	m := newFormModel(c, s)
 
-	// StandardOutPath と StandardErrorPath の DrillDownField が存在する
-	found := map[string]bool{}
+	found := map[detailKind]bool{}
 	for _, f := range m.fields {
 		if df, ok := f.(*DrillDownField); ok {
-			found[df.title] = true
+			found[df.kind] = true
 		}
 	}
-	if !found["StandardOutPath"] {
-		t.Error("StandardOutPath DrillDownField should exist")
+	if !found[detailStdoutPath] {
+		t.Error("detailStdoutPath DrillDownField should exist")
 	}
-	if !found["StandardErrorPath"] {
-		t.Error("StandardErrorPath DrillDownField should exist")
+	if !found[detailStderrPath] {
+		t.Error("detailStderrPath DrillDownField should exist")
 	}
 }
 
@@ -131,17 +130,17 @@ func TestFormModel_DrillDownOnScheduleInterval(t *testing.T) {
 	m.width = 80
 	m.height = 40
 
-	// スケジュールフィールドを見つけてフォーカス
+	// onEnterFnが設定されたSelectFieldを見つけてフォーカス
 	visible := m.visibleFields()
 	schedIdx := -1
 	for i, f := range visible {
-		if sf, ok := f.(*SelectField); ok && sf.title == "スケジュール" {
+		if sf, ok := f.(*SelectField); ok && sf.onEnterFn != nil {
 			schedIdx = i
 			break
 		}
 	}
 	if schedIdx < 0 {
-		t.Fatal("スケジュールフィールドが見つからない")
+		t.Fatal("onEnterFn付きSelectFieldが見つからない")
 	}
 
 	m.FocusField(schedIdx)

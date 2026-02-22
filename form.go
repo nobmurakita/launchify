@@ -79,7 +79,7 @@ func (m *formModel) buildFields() []Field {
 		NewTextInputField("WorkingDirectory", "作業ディレクトリ（省略可）", &c.WorkingDirectory),
 
 		// 4. 環境変数（Enterでドリルダウンへ遷移）
-		NewDrillDownField("環境変数", func() string {
+		NewDrillDownField("環境変数", detailEnvVars, func() string {
 			return strings.TrimSpace(s.envVarsStr)
 		}),
 
@@ -99,17 +99,26 @@ func (m *formModel) buildFields() []Field {
 			{"Interval", "interval"},
 			{"Calendar", "calendar"},
 		}, &s.scheduleType,
+			WithOnEnterFunc(func() tea.Cmd {
+				switch s.scheduleType {
+				case string(ScheduleInterval):
+					return func() tea.Msg { return openDetailMsg{kind: detailInterval} }
+				case string(ScheduleCalendar):
+					return func() tea.Msg { return openDetailMsg{kind: detailCalendar} }
+				}
+				return nil
+			}),
 			WithOptionDetailFn(func(value string) string {
 				if d := scheduleOptionDetail(s, value); d != "" {
 					return d
 				}
-				if (value == "interval" || value == "calendar") && value == s.scheduleType {
+				if (value == string(ScheduleInterval) || value == string(ScheduleCalendar)) && value == s.scheduleType {
 					return "enter で編集"
 				}
 				return ""
 			}),
 			WithSelectValidateFunc(func(value string) string {
-				if (value == "interval" || value == "calendar") && scheduleOptionDetail(s, value) == "" {
+				if (value == string(ScheduleInterval) || value == string(ScheduleCalendar)) && scheduleOptionDetail(s, value) == "" {
 					return "enter で詳細を入力してください"
 				}
 				return ""
@@ -124,12 +133,12 @@ func (m *formModel) buildFields() []Field {
 		}, &s.keepAlive),
 
 		// 9. StandardOutPath（ドリルダウンでパス編集）
-		NewDrillDownField("StandardOutPath", func() string {
+		NewDrillDownField("StandardOutPath", detailStdoutPath, func() string {
 			return s.stdoutPath
 		}),
 
 		// 10. StandardErrorPath（ドリルダウンでパス編集）
-		NewDrillDownField("StandardErrorPath", func() string {
+		NewDrillDownField("StandardErrorPath", detailStderrPath, func() string {
 			return s.stderrPath
 		}),
 
@@ -215,7 +224,7 @@ func (m formModel) handleAdvance(drillDown bool) (formModel, tea.Cmd) {
 	return m.moveFocus(1)
 }
 
-// checkDrillDown は現在のフィールドの値に応じてドリルダウンメッセージを返す
+// checkDrillDown は現在のフィールドの種類に応じてドリルダウンメッセージを返す
 func (m formModel) checkDrillDown() tea.Cmd {
 	visible := m.visibleFields()
 	if m.focused >= len(visible) {
@@ -223,27 +232,14 @@ func (m formModel) checkDrillDown() tea.Cmd {
 	}
 	f := visible[m.focused]
 
-	// 環境変数: 常にドリルダウン
-	if df, ok := f.(*DrillDownField); ok && df.title == "環境変数" {
-		return func() tea.Msg { return openDetailMsg{kind: detailEnvVars} }
+	// DrillDownField: 常にドリルダウン遷移
+	if df, ok := f.(*DrillDownField); ok {
+		return func() tea.Msg { return openDetailMsg{kind: df.kind} }
 	}
 
-	// スケジュール: interval/calendar 選択時にドリルダウン
-	if sf, ok := f.(*SelectField); ok && sf.title == "スケジュール" {
-		switch sf.SelectedValue() {
-		case "interval":
-			return func() tea.Msg { return openDetailMsg{kind: detailInterval} }
-		case "calendar":
-			return func() tea.Msg { return openDetailMsg{kind: detailCalendar} }
-		}
-	}
-
-	// ログパス: 常にドリルダウン
-	if df, ok := f.(*DrillDownField); ok && df.title == "StandardOutPath" {
-		return func() tea.Msg { return openDetailMsg{kind: detailStdoutPath} }
-	}
-	if df, ok := f.(*DrillDownField); ok && df.title == "StandardErrorPath" {
-		return func() tea.Msg { return openDetailMsg{kind: detailStderrPath} }
+	// SelectField: onEnterFnが設定されていれば呼び出す
+	if sf, ok := f.(*SelectField); ok && sf.onEnterFn != nil {
+		return sf.onEnterFn()
 	}
 
 	return nil
@@ -421,11 +417,11 @@ func (m formModel) absoluteIndex(visibleIdx int) int {
 // ドリルダウンで値が入力済みの場合のみ文字列を返し、未入力なら空文字列を返す。
 func scheduleOptionDetail(s *formState, optionValue string) string {
 	switch optionValue {
-	case "interval":
+	case string(ScheduleInterval):
 		if s.intervalStr != "" {
 			return s.intervalStr + "秒"
 		}
-	case "calendar":
+	case string(ScheduleCalendar):
 		parts := []struct {
 			label string
 			value string
@@ -461,14 +457,14 @@ func applyFormValues(c *Config, s *formState) error {
 	c.KeepAlive = KeepAliveType(s.keepAlive)
 	c.ScheduleType = ScheduleType(s.scheduleType)
 
-	if s.scheduleType == "interval" && s.intervalStr != "" {
+	if s.scheduleType == string(ScheduleInterval) && s.intervalStr != "" {
 		n, _ := strconv.Atoi(s.intervalStr)
 		c.StartInterval = n
-	} else if s.scheduleType == "interval" && s.intervalStr == "" {
+	} else if s.scheduleType == string(ScheduleInterval) && s.intervalStr == "" {
 		c.ScheduleType = ScheduleNone
 	}
 
-	if s.scheduleType == "calendar" {
+	if s.scheduleType == string(ScheduleCalendar) {
 		ci := CalendarInterval{
 			Minute:  parseOptionalInt(s.minuteStr),
 			Hour:    parseOptionalInt(s.hourStr),

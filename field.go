@@ -15,7 +15,6 @@ type Field interface {
 	Focus() tea.Cmd
 	Blur()
 	Visible() bool
-	Focusable() bool  // Tab/Shift+Tabでフォーカス移動可能か
 	Validate() string // エラーメッセージ（空文字ならOK）
 	Height() int
 }
@@ -146,8 +145,6 @@ func (f *TextInputField) Blur() {
 	f.model.Blur()
 }
 
-func (f *TextInputField) Focusable() bool { return true }
-
 func (f *TextInputField) Visible() bool {
 	if f.visibleFn != nil {
 		return f.visibleFn()
@@ -197,6 +194,12 @@ func WithSelectValidateFunc(fn func(string) string) SelectFieldOption {
 	return func(f *SelectField) { f.validateFn = fn }
 }
 
+// WithOnEnterFunc はEnter押下時に実行するコマンド生成関数を設定する。
+// nilを返した場合はドリルダウン遷移しない。
+func WithOnEnterFunc(fn func() tea.Cmd) SelectFieldOption {
+	return func(f *SelectField) { f.onEnterFn = fn }
+}
+
 // SelectField は選択式フィールド
 type SelectField struct {
 	title          string
@@ -206,6 +209,7 @@ type SelectField struct {
 	focused        bool
 	optionDetailFn func(value string) string
 	validateFn     func(string) string
+	onEnterFn      func() tea.Cmd
 }
 
 func NewSelectField(title string, options []SelectOption, value *string, opts ...SelectFieldOption) *SelectField {
@@ -333,8 +337,7 @@ func (f *SelectField) Blur() {
 	f.focused = false
 }
 
-func (f *SelectField) Visible() bool   { return true }
-func (f *SelectField) Focusable() bool { return true }
+func (f *SelectField) Visible() bool { return true }
 
 func (f *SelectField) Validate() string {
 	if f.validateFn != nil {
@@ -520,8 +523,7 @@ func (f *ConfirmField) Blur() {
 	f.focused = false
 }
 
-func (f *ConfirmField) Visible() bool   { return true }
-func (f *ConfirmField) Focusable() bool { return true }
+func (f *ConfirmField) Visible() bool { return true }
 
 func (f *ConfirmField) Validate() string { return "" }
 
@@ -537,12 +539,13 @@ func (f *ConfirmField) Height() int {
 // DrillDownField は現在の値を表示し、Enterでドリルダウンに遷移する読み取り専用フィールド
 type DrillDownField struct {
 	title     string
+	kind      detailKind    // ドリルダウン画面の種類
 	summaryFn func() string // 現在値のサマリーを返す
 	focused   bool
 }
 
-func NewDrillDownField(title string, summaryFn func() string) *DrillDownField {
-	return &DrillDownField{title: title, summaryFn: summaryFn}
+func NewDrillDownField(title string, kind detailKind, summaryFn func() string) *DrillDownField {
+	return &DrillDownField{title: title, kind: kind, summaryFn: summaryFn}
 }
 
 func (f *DrillDownField) Update(tea.Msg) (Field, tea.Cmd) { return f, nil }
@@ -583,8 +586,7 @@ func (f *DrillDownField) View() string {
 
 func (f *DrillDownField) Focus() tea.Cmd { f.focused = true; return nil }
 func (f *DrillDownField) Blur()          { f.focused = false }
-func (f *DrillDownField) Visible() bool   { return true }
-func (f *DrillDownField) Focusable() bool { return true }
+func (f *DrillDownField) Visible() bool { return true }
 func (f *DrillDownField) Validate() string { return "" }
 
 func (f *DrillDownField) Height() int {
