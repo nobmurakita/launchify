@@ -9,6 +9,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// fieldPrompt はテキスト入力フィールドの共通プロンプト文字列
+const fieldPrompt = "  "
+
 // Field はフォーム内の入力フィールドを抽象化するインターフェース
 type Field interface {
 	Update(msg tea.Msg) (Field, tea.Cmd)
@@ -56,7 +59,7 @@ func WithValidateFunc(fn func(string) string) TextInputOption {
 
 func NewTextInputField(title, description string, value *string, opts ...TextInputOption) *TextInputField {
 	ti := textinput.New()
-	ti.Prompt = "  "
+	ti.Prompt = fieldPrompt
 	ti.SetValue(*value)
 	ti.Cursor.Style = focusedCursorStyle
 
@@ -198,7 +201,7 @@ func WithSelectValidateFunc(fn func(string) string) SelectFieldOption {
 // WithOnEnterFunc はEnter押下時に実行するコマンド生成関数を設定する。
 // nilを返した場合はドリルダウン遷移しない。
 func WithOnEnterFunc(fn func() tea.Cmd) SelectFieldOption {
-	return func(f *SelectField) { f.onEnterFn = fn }
+	return func(f *SelectField) { f.onDrillDownFn = fn }
 }
 
 // SelectField は選択式フィールド
@@ -210,7 +213,7 @@ type SelectField struct {
 	focused        bool
 	optionDetailFn func(value string) string
 	validateFn     func(string) string
-	onEnterFn      func() tea.Cmd
+	onDrillDownFn  func() tea.Cmd
 }
 
 func NewSelectField(title string, options []SelectOption, value *string, opts ...SelectFieldOption) *SelectField {
@@ -260,26 +263,26 @@ func (f *SelectField) Update(msg tea.Msg) (Field, tea.Cmd) {
 }
 
 func (f *SelectField) View() string {
-	if f.focused {
-		return f.viewFocused()
-	}
-	return f.viewBlurred()
+	return f.renderSelectView(f.focused)
 }
 
-func (f *SelectField) viewFocused() string {
+func (f *SelectField) renderSelectView(focused bool) string {
 	var b strings.Builder
-	b.WriteString(focusedTitleStyle.Render(f.title))
+
+	titleStyle := focusedTitleStyle
+	if !focused {
+		titleStyle = blurredTitleStyle
+	}
+	b.WriteString(titleStyle.Render(f.title))
 	b.WriteString("\n")
+
 	for i, opt := range f.options {
 		label := "  " + opt.Label
 		if d := f.optionDetail(opt.Value); d != "" {
 			label += "（" + d + "）"
 		}
-		if i == f.cursor {
-			b.WriteString(selectedOptionStyle.Render(label))
-		} else {
-			b.WriteString(unselectedOptionStyle.Render(label))
-		}
+		style := f.selectOptionStyle(focused, i)
+		b.WriteString(style.Render(label))
 		if i < len(f.options)-1 {
 			b.WriteString("\n")
 		}
@@ -287,25 +290,17 @@ func (f *SelectField) viewFocused() string {
 	return b.String()
 }
 
-func (f *SelectField) viewBlurred() string {
-	var b strings.Builder
-	b.WriteString(blurredTitleStyle.Render(f.title))
-	b.WriteString("\n")
-	for i, opt := range f.options {
-		label := "  " + opt.Label
-		if d := f.optionDetail(opt.Value); d != "" {
-			label += "（" + d + "）"
+func (f *SelectField) selectOptionStyle(focused bool, index int) lipgloss.Style {
+	if focused {
+		if index == f.cursor {
+			return selectedOptionStyle
 		}
-		if opt.Value == *f.value {
-			b.WriteString(blurredValueStyle.Render(label))
-		} else {
-			b.WriteString(blurredMutedStyle.Render(label))
-		}
-		if i < len(f.options)-1 {
-			b.WriteString("\n")
-		}
+		return unselectedOptionStyle
 	}
-	return b.String()
+	if f.options[index].Value == *f.value {
+		return blurredValueStyle
+	}
+	return blurredMutedStyle
 }
 
 func (f *SelectField) optionDetail(value string) string {
@@ -429,10 +424,7 @@ func (f *ConfirmField) Update(msg tea.Msg) (Field, tea.Cmd) {
 }
 
 func (f *ConfirmField) View() string {
-	if f.focused {
-		return f.viewFocused()
-	}
-	return f.viewBlurred()
+	return f.renderView(f.focused)
 }
 
 func (f *ConfirmField) renderView(focused bool) string {
@@ -488,9 +480,6 @@ func (f *ConfirmField) renderView(focused bool) string {
 	return b.String()
 }
 
-func (f *ConfirmField) viewFocused() string { return f.renderView(true) }
-func (f *ConfirmField) viewBlurred() string { return f.renderView(false) }
-
 func (f *ConfirmField) Focus() tea.Cmd {
 	f.focused = true
 	return nil
@@ -530,32 +519,23 @@ func (f *DrillDownField) Update(tea.Msg) (Field, tea.Cmd) { return f, nil }
 func (f *DrillDownField) View() string {
 	summary := f.summaryFn()
 
-	var b strings.Builder
+	titleStyle, hintStyle, contentStyle := blurredTitleStyle, blurredMutedStyle, blurredValueStyle
 	if f.focused {
-		b.WriteString(focusedTitleStyle.Render(f.title))
-		b.WriteString("  ")
-		b.WriteString(focusedDescStyle.Render("(enter で編集)"))
-		if summary == "" {
-			b.WriteString("\n")
-			b.WriteString(selectedOptionStyle.Render("  -"))
-		} else {
-			for _, line := range strings.Split(summary, "\n") {
-				b.WriteString("\n")
-				b.WriteString(selectedOptionStyle.Render("  " + line))
-			}
-		}
+		titleStyle, hintStyle, contentStyle = focusedTitleStyle, focusedDescStyle, selectedOptionStyle
+	}
+
+	var b strings.Builder
+	b.WriteString(titleStyle.Render(f.title))
+	b.WriteString("  ")
+	b.WriteString(hintStyle.Render("(enter で編集)"))
+
+	if summary == "" {
+		b.WriteString("\n")
+		b.WriteString(contentStyle.Render("  -"))
 	} else {
-		b.WriteString(blurredTitleStyle.Render(f.title))
-		b.WriteString("  ")
-		b.WriteString(blurredMutedStyle.Render("(enter で編集)"))
-		if summary == "" {
+		for _, line := range strings.Split(summary, "\n") {
 			b.WriteString("\n")
-			b.WriteString(blurredValueStyle.Render("  -"))
-		} else {
-			for _, line := range strings.Split(summary, "\n") {
-				b.WriteString("\n")
-				b.WriteString(blurredValueStyle.Render("  " + line))
-			}
+			b.WriteString(contentStyle.Render("  " + line))
 		}
 	}
 	return b.String()

@@ -102,30 +102,9 @@ func (m *formModel) buildFields() []Field {
 			{"Interval", "interval"},
 			{"Calendar", "calendar"},
 		}, &s.scheduleType,
-			WithOnEnterFunc(func() tea.Cmd {
-				switch s.scheduleType {
-				case string(ScheduleInterval):
-					return func() tea.Msg { return openDetailMsg{kind: detailInterval} }
-				case string(ScheduleCalendar):
-					return func() tea.Msg { return openDetailMsg{kind: detailCalendar} }
-				}
-				return nil
-			}),
-			WithOptionDetailFn(func(value string) string {
-				if d := scheduleOptionDetail(s, value); d != "" {
-					return d
-				}
-				if (value == string(ScheduleInterval) || value == string(ScheduleCalendar)) && value == s.scheduleType {
-					return "enter で編集"
-				}
-				return ""
-			}),
-			WithSelectValidateFunc(func(value string) string {
-				if (value == string(ScheduleInterval) || value == string(ScheduleCalendar)) && scheduleOptionDetail(s, value) == "" {
-					return "enter で詳細を入力してください"
-				}
-				return ""
-			}),
+			WithOnEnterFunc(m.scheduleOnDrillDownCmd),
+			WithOptionDetailFn(m.scheduleDetail),
+			WithSelectValidateFunc(m.scheduleValidate),
 		),
 
 		// 8. KeepAlive
@@ -240,9 +219,9 @@ func (m formModel) checkDrillDown() tea.Cmd {
 		return func() tea.Msg { return openDetailMsg{kind: df.kind} }
 	}
 
-	// SelectField: onEnterFnが設定されていれば呼び出す
-	if sf, ok := f.(*SelectField); ok && sf.onEnterFn != nil {
-		return sf.onEnterFn()
+	// SelectField: onDrillDownFnが設定されていれば呼び出す
+	if sf, ok := f.(*SelectField); ok && sf.onDrillDownFn != nil {
+		return sf.onDrillDownFn()
 	}
 
 	return nil
@@ -254,7 +233,7 @@ func (m formModel) updateFocused(msg tea.Msg) (formModel, tea.Cmd) {
 		return m, nil
 	}
 
-	idx := m.absoluteIndex(m.focused)
+	idx := m.fieldIndexFromVisibleIndex(m.focused)
 	updated, cmd := m.fields[idx].Update(msg)
 	m.fields[idx] = updated
 	return m, cmd
@@ -277,13 +256,11 @@ func (m formModel) moveFocus(delta int) (formModel, tea.Cmd) {
 
 	m.adjustScroll()
 
-	// 新しいフィールドをFocus
-	cmd := visible[m.focused].Focus()
-	return m, cmd
+	return m, visible[m.focused].Focus()
 }
 
-// FocusField はフォーカスを指定されたvisibleインデックスに移動する
-func (m *formModel) FocusField(visibleIdx int) tea.Cmd {
+// focusVisibleFieldAt はフォーカスを指定されたvisibleインデックスに移動する
+func (m *formModel) focusVisibleFieldAt(visibleIdx int) tea.Cmd {
 	visible := m.visibleFields()
 	if len(visible) == 0 {
 		return nil
@@ -306,7 +283,7 @@ func (m *formModel) FocusField(visibleIdx int) tea.Cmd {
 // rebuildAndFocus はフィールドを再構築し、現在のフォーカス位置を復元する
 func (m *formModel) rebuildAndFocus() tea.Cmd {
 	m.fields = m.buildFields()
-	return m.FocusField(m.focused)
+	return m.focusVisibleFieldAt(m.focused)
 }
 
 // setError はエラーメッセージを設定する
@@ -411,8 +388,8 @@ func (m formModel) visibleFields() []Field {
 	return result
 }
 
-// absoluteIndex はvisibleインデックスからm.fieldsの絶対インデックスを返す
-func (m formModel) absoluteIndex(visibleIdx int) int {
+// fieldIndexFromVisibleIndex はvisibleインデックスからm.fieldsの絶対インデックスを返す
+func (m formModel) fieldIndexFromVisibleIndex(visibleIdx int) int {
 	count := 0
 	for i, f := range m.fields {
 		if f.Visible() {
@@ -423,6 +400,38 @@ func (m formModel) absoluteIndex(visibleIdx int) int {
 		}
 	}
 	return len(m.fields) - 1
+}
+
+// ---------- スケジュールフィールドのメソッド ----------
+
+// scheduleOnDrillDownCmd はスケジュール選択でEnter押下時のドリルダウンコマンドを返す
+func (m *formModel) scheduleOnDrillDownCmd() tea.Cmd {
+	switch m.state.scheduleType {
+	case string(ScheduleInterval):
+		return func() tea.Msg { return openDetailMsg{kind: detailInterval} }
+	case string(ScheduleCalendar):
+		return func() tea.Msg { return openDetailMsg{kind: detailCalendar} }
+	}
+	return nil
+}
+
+// scheduleValidate はスケジュール選択のバリデーションを行う
+func (m *formModel) scheduleValidate(value string) string {
+	if (value == string(ScheduleInterval) || value == string(ScheduleCalendar)) && scheduleOptionDetail(m.state, value) == "" {
+		return "enter で詳細を入力してください"
+	}
+	return ""
+}
+
+// scheduleDetail はスケジュールオプションの詳細テキストを返す
+func (m *formModel) scheduleDetail(value string) string {
+	if d := scheduleOptionDetail(m.state, value); d != "" {
+		return d
+	}
+	if (value == string(ScheduleInterval) || value == string(ScheduleCalendar)) && value == m.state.scheduleType {
+		return "enter で編集"
+	}
+	return ""
 }
 
 // ---------- ユーティリティ関数 ----------
@@ -480,6 +489,17 @@ func applyFormValues(c *Config, s *formState) error {
 	c.KeepAlive = KeepAliveType(s.keepAlive)
 	c.ScheduleType = ScheduleType(s.scheduleType)
 
+	if err := applyScheduleValues(c, s); err != nil {
+		return err
+	}
+
+	c.EnvironmentVars = parseEnvVars(s.envVarsStr)
+
+	return applyLogPaths(c, s)
+}
+
+// applyScheduleValues はスケジュール関連の値をConfigに適用する
+func applyScheduleValues(c *Config, s *formState) error {
 	if s.scheduleType == string(ScheduleInterval) && s.intervalStr != "" {
 		n, err := strconv.Atoi(s.intervalStr)
 		if err != nil {
@@ -504,9 +524,11 @@ func applyFormValues(c *Config, s *formState) error {
 			c.ScheduleType = ScheduleNone
 		}
 	}
+	return nil
+}
 
-	c.EnvironmentVars = parseEnvVars(s.envVarsStr)
-
+// applyLogPaths はログパスをConfigに適用する（~展開・絶対パス化）
+func applyLogPaths(c *Config, s *formState) error {
 	stdoutPath, err := toAbsPath(s.stdoutPath)
 	if err != nil {
 		return err
@@ -518,7 +540,6 @@ func applyFormValues(c *Config, s *formState) error {
 		return err
 	}
 	c.StderrPath = stderrPath
-
 	return nil
 }
 
