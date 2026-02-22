@@ -300,6 +300,12 @@ func (m *formModel) FocusField(visibleIdx int) tea.Cmd {
 	return visible[m.focused].Focus()
 }
 
+// rebuildAndFocus はフィールドを再構築し、現在のフォーカス位置を復元する
+func (m *formModel) rebuildAndFocus() tea.Cmd {
+	m.fields = m.buildFields()
+	return m.FocusField(m.focused)
+}
+
 // adjustScroll はフォーカス位置に応じてスクロールオフセットを調整する
 func (m *formModel) adjustScroll() {
 	if m.height == 0 {

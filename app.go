@@ -144,10 +144,7 @@ func (m appModel) openDetail(msg openDetailMsg) (tea.Model, tea.Cmd) {
 func (m appModel) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if _, ok := msg.(detailDoneMsg); ok {
 		m.phase = phaseForm
-		// フォームのフィールドを再構築して値を反映
-		m.form.fields = m.form.buildFields()
-		// 元のフィールドに戻る
-		cmd := m.form.FocusField(m.form.focused)
+		cmd := m.form.rebuildAndFocus()
 		return m, cmd
 	}
 
@@ -164,9 +161,7 @@ func (m appModel) updatePreview(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case resultBack:
 			m.phase = phaseForm
-			// フォームのフィールドを再構築（プレビューから戻った時に値を反映）
-			m.form.fields = m.form.buildFields()
-			cmd := m.form.FocusField(m.form.focused)
+			cmd := m.form.rebuildAndFocus()
 			return m, cmd
 		case resultQuit:
 			m.result = appResultQuit
