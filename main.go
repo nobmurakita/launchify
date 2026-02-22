@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 )
 
 func main() {
@@ -14,7 +15,7 @@ func main() {
 		fmt.Println("キャンセルしました")
 		return
 	}
-	if err := Install(config.Label, plist); err != nil {
+	if err := Install(config.Label, plist, os.Stdout); err != nil {
 		log.Fatal(err)
 	}
 }

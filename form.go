@@ -16,10 +16,12 @@ const formFooterLines = 2
 // formState はフォーム入力用のローカル変数をまとめた構造体。
 // Configへの変換前の中間状態を保持する。
 type formState struct {
-	processType    string
-	keepAlive      string
-	scheduleType   string
-	directInstall  bool
+	processType  string
+	keepAlive    string
+	scheduleType string
+
+	// directInstall はアクション選択の結果（true=即インストール、false=プレビュー表示）
+	directInstall bool
 	intervalStr    string
 	minuteStr     string
 	hourStr       string
@@ -344,7 +346,7 @@ func (m formModel) View() string {
 
 // visibleFields は現在表示可能なフィールドのみを返す
 func (m formModel) visibleFields() []Field {
-	var result []Field
+	result := make([]Field, 0, len(m.fields))
 	for _, f := range m.fields {
 		if f.Visible() {
 			result = append(result, f)
@@ -441,6 +443,17 @@ func applyFormValues(c *Config, s *formState) error {
 		c.Program = parts[len(parts)-1]
 	}
 
+	// 未選択（空文字列）の場合はデフォルト値を使用
+	if s.processType == "" {
+		s.processType = string(ProcessStandard)
+	}
+	if s.keepAlive == "" {
+		s.keepAlive = string(KeepAliveNone)
+	}
+	if s.scheduleType == "" {
+		s.scheduleType = string(ScheduleNone)
+	}
+
 	if !validProcessType(s.processType) {
 		return fmt.Errorf("不正なProcessType: %q", s.processType)
 	}
@@ -458,7 +471,11 @@ func applyFormValues(c *Config, s *formState) error {
 		return err
 	}
 
-	c.EnvironmentVars = parseEnvVars(s.envVarsStr)
+	envVars, err := parseEnvVars(s.envVarsStr)
+	if err != nil {
+		return err
+	}
+	c.EnvironmentVars = envVars
 
 	return applyLogPaths(c, s)
 }
@@ -470,6 +487,9 @@ func applyScheduleValues(c *Config, s *formState) error {
 			n, err := strconv.Atoi(s.intervalStr)
 			if err != nil {
 				return fmt.Errorf("StartIntervalの値が不正です: %q", s.intervalStr)
+			}
+			if n <= 0 {
+				return fmt.Errorf("StartIntervalは正の整数を指定してください: %d", n)
 			}
 			c.StartInterval = n
 		} else {
@@ -485,10 +505,35 @@ func applyScheduleValues(c *Config, s *formState) error {
 			Month:   parseOptionalInt(s.monthStr),
 			Weekday: parseOptionalInt(s.weekdayStr),
 		}
+		if err := validateCalendarRange(ci); err != nil {
+			return err
+		}
 		if ci.HasValue() {
 			c.Calendar = ci
 		} else {
 			c.ScheduleType = ScheduleNone
+		}
+	}
+	return nil
+}
+
+// validateCalendarRange はCalendarIntervalの各フィールドが有効な範囲内かを検証する
+func validateCalendarRange(ci CalendarInterval) error {
+	checks := []struct {
+		name string
+		val  *int
+		min  int
+		max  int
+	}{
+		{"月", ci.Month, 1, 12},
+		{"日", ci.Day, 1, 31},
+		{"曜日", ci.Weekday, 0, 6},
+		{"時", ci.Hour, 0, 23},
+		{"分", ci.Minute, 0, 59},
+	}
+	for _, c := range checks {
+		if c.val != nil && (*c.val < c.min || *c.val > c.max) {
+			return fmt.Errorf("%sの値が範囲外です: %d（%d〜%d）", c.name, *c.val, c.min, c.max)
 		}
 	}
 	return nil
@@ -533,11 +578,12 @@ func toAbsPath(path string) (string, error) {
 	return abs, nil
 }
 
-// parseEnvVars は "KEY=VALUE\nKEY2=VALUE2" 形式の文字列をmapに変換する
-func parseEnvVars(s string) map[string]string {
+// parseEnvVars は "KEY=VALUE\nKEY2=VALUE2" 形式の文字列をmapに変換する。
+// "=" を含まない行がある場合はエラーを返す。
+func parseEnvVars(s string) (map[string]string, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return nil
+		return nil, nil
 	}
 	result := make(map[string]string)
 	for _, line := range strings.Split(s, "\n") {
@@ -545,14 +591,16 @@ func parseEnvVars(s string) map[string]string {
 		if line == "" {
 			continue
 		}
-		if k, v, ok := strings.Cut(line, "="); ok {
-			result[strings.TrimSpace(k)] = strings.TrimSpace(v)
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			return nil, fmt.Errorf("環境変数の書式が不正です（KEY=VALUE形式で入力してください）: %q", line)
 		}
+		result[strings.TrimSpace(k)] = strings.TrimSpace(v)
 	}
 	if len(result) == 0 {
-		return nil
+		return nil, nil
 	}
-	return result
+	return result, nil
 }
 
 func validProcessType(s string) bool {

@@ -103,38 +103,32 @@ func buildIntervalFields(s *formState) ([]textinput.Model, []string) {
 }
 
 func buildCalendarFields(s *formState) ([]textinput.Model, []string) {
-	values := make([]string, calFieldCount)
-	values[calMonth] = s.monthStr
-	values[calDay] = s.dayStr
-	values[calWeekday] = s.weekdayStr
-	values[calHour] = s.hourStr
-	values[calMinute] = s.minuteStr
+	type calFieldDef struct {
+		value       string
+		label       string
+		placeholder string
+	}
+	defs := []calFieldDef{
+		{s.monthStr, "月 (Month) 1-12", "空欄=毎月"},
+		{s.dayStr, "日 (Day) 1-31", "空欄=毎日"},
+		{s.weekdayStr, "曜日 (Weekday) 0=日..6=土", "空欄=毎日"},
+		{s.hourStr, "時 (Hour) 0-23", "空欄=毎時"},
+		{s.minuteStr, "分 (Minute) 0-59", "空欄=毎分"},
+	}
 
-	labels := make([]string, calFieldCount)
-	labels[calMonth] = "月 (Month) 1-12"
-	labels[calDay] = "日 (Day) 1-31"
-	labels[calWeekday] = "曜日 (Weekday) 0=日..6=土"
-	labels[calHour] = "時 (Hour) 0-23"
-	labels[calMinute] = "分 (Minute) 0-59"
-
-	placeholders := make([]string, calFieldCount)
-	placeholders[calMonth] = "空欄=毎月"
-	placeholders[calDay] = "空欄=毎日"
-	placeholders[calWeekday] = "空欄=毎日"
-	placeholders[calHour] = "空欄=毎時"
-	placeholders[calMinute] = "空欄=毎分"
-
-	fields := make([]textinput.Model, calFieldCount)
-	for i, val := range values {
+	fields := make([]textinput.Model, len(defs))
+	labels := make([]string, len(defs))
+	for i, d := range defs {
 		ti := textinput.New()
-		ti.Placeholder = placeholders[i]
-		ti.SetValue(val)
+		ti.Placeholder = d.placeholder
+		ti.SetValue(d.value)
 		ti.Prompt = fieldPrompt
 		ti.Cursor.Style = focusedCursorStyle
 		if i == 0 {
 			ti.Focus()
 		}
 		fields[i] = ti
+		labels[i] = d.label
 	}
 	return fields, labels
 }

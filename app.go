@@ -140,6 +140,8 @@ func (m appModel) openDetail(msg openDetailMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m appModel) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// cancelledフラグの有無に関わらずフォームに戻る。
+	// キャンセル時はdetailModel.applyFieldValuesが呼ばれないため、formStateは変更されない。
 	if _, ok := msg.(detailDoneMsg); ok {
 		m.phase = phaseForm
 		cmd := m.form.rebuildAndFocus()
@@ -223,7 +225,7 @@ func resolveProgram(program string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("コマンド %q が見つかりません: %w", cmd, err)
 	}
-	// 元の文字列のコマンド部分のみを置換（引数のクォート構造を保持）
-	idx := strings.Index(program, cmd)
-	return resolved + program[idx+len(cmd):], nil
+	// 先頭の空白を除去し、コマンド部分のみをフルパスに置換（引数のクォート構造を保持）
+	trimmed := strings.TrimLeft(program, " \t")
+	return resolved + trimmed[len(cmd):], nil
 }

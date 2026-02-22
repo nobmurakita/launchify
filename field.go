@@ -422,12 +422,8 @@ func (f *ConfirmField) View() string {
 	return f.renderView(f.focused)
 }
 
-func (f *ConfirmField) renderView(focused bool) string {
-	var b strings.Builder
-
-	// スタイル選択
-	var titleStyle, descStyle lipgloss.Style
-	var activeStyle, inactiveStyle lipgloss.Style
+// resolveStyles はfocused状態とbuttonStyleに応じたスタイルを返す
+func (f *ConfirmField) resolveStyles(focused bool) (titleStyle, descStyle, activeStyle, inactiveStyle lipgloss.Style) {
 	if focused {
 		titleStyle, descStyle = focusedTitleStyle, focusedDescStyle
 		if f.buttonStyle {
@@ -443,6 +439,12 @@ func (f *ConfirmField) renderView(focused bool) string {
 			activeStyle, inactiveStyle = blurredValueStyle, blurredMutedStyle
 		}
 	}
+	return
+}
+
+func (f *ConfirmField) renderView(focused bool) string {
+	var b strings.Builder
+	titleStyle, descStyle, activeStyle, inactiveStyle := f.resolveStyles(focused)
 
 	// タイトル（ボタンスタイルでない場合のみ表示）
 	if !f.buttonStyle {
