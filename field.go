@@ -223,25 +223,12 @@ type SelectField struct {
 }
 
 func NewSelectField(title string, options []SelectOption, value *string, opts ...SelectFieldOption) *SelectField {
-	cursor := 0
-	matched := false
-	for i, opt := range options {
-		if opt.Value == *value {
-			cursor = i
-			matched = true
-			break
-		}
-	}
-	// 値がどのオプションにもマッチしない場合、先頭オプションの値に同期
-	if !matched && len(options) > 0 {
-		*value = options[0].Value
-	}
 	f := &SelectField{
 		title:   title,
 		options: options,
-		cursor:  cursor,
 		value:   value,
 	}
+	f.syncCursorToValue()
 	for _, opt := range opts {
 		opt(f)
 	}
@@ -318,21 +305,23 @@ func (f *SelectField) optionDetail(value string) string {
 
 func (f *SelectField) Focus() tea.Cmd {
 	f.focused = true
-	// カーソルを現在の値に合わせる
-	matched := false
+	f.syncCursorToValue()
+	return nil
+}
+
+// syncCursorToValue はカーソルを現在の値に同期する。
+// 値がどのオプションにもマッチしない場合、先頭オプションにフォールバックする。
+func (f *SelectField) syncCursorToValue() {
 	for i, opt := range f.options {
 		if opt.Value == *f.value {
 			f.cursor = i
-			matched = true
-			break
+			return
 		}
 	}
-	// 値がどのオプションにもマッチしない場合、先頭オプションに同期
-	if !matched && len(f.options) > 0 {
+	if len(f.options) > 0 {
 		f.cursor = 0
 		*f.value = f.options[0].Value
 	}
-	return nil
 }
 
 func (f *SelectField) Blur() {

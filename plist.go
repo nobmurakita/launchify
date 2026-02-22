@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"html"
-	"sort"
+	"maps"
+	"slices"
 	"text/template"
 
 	"github.com/google/shlex"
@@ -166,11 +167,7 @@ func buildPlistData(c *Config) plistData {
 	}
 
 	if len(c.EnvironmentVars) > 0 {
-		keys := make([]string, 0, len(c.EnvironmentVars))
-		for k := range c.EnvironmentVars {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(c.EnvironmentVars))
 		vars := make([]envVar, len(keys))
 		for i, k := range keys {
 			vars[i] = envVar{Key: k, Value: c.EnvironmentVars[k]}

@@ -244,22 +244,8 @@ func (m formModel) updateFocused(msg tea.Msg) (formModel, tea.Cmd) {
 
 // moveFocus はフォーカスをdelta分移動する
 func (m formModel) moveFocus(delta int) (formModel, tea.Cmd) {
-	visible := m.visibleFields()
-	if len(visible) == 0 {
-		return m, nil
-	}
-
-	// 現在のフィールドをBlur
-	if m.focused < len(visible) {
-		visible[m.focused].Blur()
-	}
-
-	m.focused = max(m.focused+delta, 0)
-	m.focused = min(m.focused, len(visible)-1)
-
-	m.adjustScroll()
-
-	return m, visible[m.focused].Focus()
+	cmd := m.focusVisibleFieldAt(m.focused + delta)
+	return m, cmd
 }
 
 // focusVisibleFieldAt はフォーカスを指定されたvisibleインデックスに移動する
@@ -274,11 +260,7 @@ func (m *formModel) focusVisibleFieldAt(visibleIdx int) tea.Cmd {
 		visible[m.focused].Blur()
 	}
 
-	m.focused = max(visibleIdx, 0)
-	if m.focused >= len(visible) {
-		m.focused = len(visible) - 1
-	}
-
+	m.focused = max(min(visibleIdx, len(visible)-1), 0)
 	m.adjustScroll()
 	return visible[m.focused].Focus()
 }
@@ -341,36 +323,16 @@ func (m formModel) View() string {
 	for i, f := range visible {
 		view := f.View()
 		if i == m.focused {
-			// フォーカス中のフィールドに色付きバーを付加
-			var decorated []string
-			for _, line := range strings.Split(view, "\n") {
-				decorated = append(decorated, bar+" "+line)
-			}
-			view = strings.Join(decorated, "\n")
+			view = prefixLines(view, bar+" ")
 		} else {
-			// 非フォーカスはバー幅分のパディング
-			var padded []string
-			for _, line := range strings.Split(view, "\n") {
-				padded = append(padded, pad+line)
-			}
-			view = strings.Join(padded, "\n")
+			view = prefixLines(view, pad)
 		}
 		lines = append(lines, view)
 	}
 	content := strings.Join(lines, "\n\n")
 
-	// スクロール処理
-	allLines := strings.Split(content, "\n")
-	usableHeight := m.height - formFooterLines // フッター分
-	if usableHeight < 1 {
-		usableHeight = len(allLines)
-	}
-
-	start := min(m.scrollOffset, len(allLines))
-	end := min(start+usableHeight, len(allLines))
-
 	var b strings.Builder
-	b.WriteString(strings.Join(allLines[start:end], "\n"))
+	b.WriteString(applyScroll(content, m.scrollOffset, m.height-formFooterLines))
 	b.WriteString("\n\n")
 	if m.errMsg != "" {
 		b.WriteString(errorStyle.Render("  "+m.errMsg) + "\n")
@@ -503,14 +465,16 @@ func applyFormValues(c *Config, s *formState) error {
 
 // applyScheduleValues はスケジュール関連の値をConfigに適用する
 func applyScheduleValues(c *Config, s *formState) error {
-	if s.scheduleType == string(ScheduleInterval) && s.intervalStr != "" {
-		n, err := strconv.Atoi(s.intervalStr)
-		if err != nil {
-			return fmt.Errorf("StartIntervalの値が不正です: %q", s.intervalStr)
+	if s.scheduleType == string(ScheduleInterval) {
+		if s.intervalStr != "" {
+			n, err := strconv.Atoi(s.intervalStr)
+			if err != nil {
+				return fmt.Errorf("StartIntervalの値が不正です: %q", s.intervalStr)
+			}
+			c.StartInterval = n
+		} else {
+			c.ScheduleType = ScheduleNone
 		}
-		c.StartInterval = n
-	} else if s.scheduleType == string(ScheduleInterval) && s.intervalStr == "" {
-		c.ScheduleType = ScheduleNone
 	}
 
 	if s.scheduleType == string(ScheduleCalendar) {
@@ -613,6 +577,27 @@ func validScheduleType(s string) bool {
 		return true
 	}
 	return false
+}
+
+// applyScroll はテキストにスクロールオフセットを適用し、表示範囲の行のみを返す。
+// usableHeight が1未満の場合はスクロールせずそのまま返す。
+func applyScroll(content string, offset, usableHeight int) string {
+	lines := strings.Split(content, "\n")
+	if usableHeight < 1 {
+		return content
+	}
+	start := min(offset, len(lines))
+	end := min(start+usableHeight, len(lines))
+	return strings.Join(lines[start:end], "\n")
+}
+
+// prefixLines はテキストの各行にプレフィックスを付加する
+func prefixLines(text, prefix string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 // parseOptionalInt は空文字列ならnil、数値文字列なら*intを返す
