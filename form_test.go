@@ -71,7 +71,7 @@ func TestFormModel_ShiftTabAtFirst(t *testing.T) {
 	}
 }
 
-func TestFormModel_CollectValues(t *testing.T) {
+func TestFormModel_PointerBindingSync(t *testing.T) {
 	c := &Config{}
 	s := &formState{}
 	m := newFormModel(c, s)
@@ -80,9 +80,9 @@ func TestFormModel_CollectValues(t *testing.T) {
 	m.fields[1].Focus()
 	m.fields[1], _ = m.fields[1].Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("myapp")})
 
-	m.CollectValues()
+	// CollectValues不要 — ポインタバインディングで自動同期
 	if c.Program != "myapp" {
-		t.Errorf("Program = %q, want %q", c.Program, "myapp")
+		t.Errorf("Program = %q, want %q (should auto-sync via pointer binding)", c.Program, "myapp")
 	}
 }
 

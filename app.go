@@ -92,8 +92,6 @@ func (m appModel) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m appModel) submitForm() (tea.Model, tea.Cmd) {
 	m.form.errMsg = "" // 前回のエラーをクリア
 
-	// フィールドの値を収集
-	m.form.CollectValues()
 	applyFormValues(m.config, m.state)
 
 	// プログラムのパス解決
