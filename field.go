@@ -204,9 +204,9 @@ func WithSelectValidateFunc(fn func(string) string) SelectFieldOption {
 	return func(f *SelectField) { f.validateFn = fn }
 }
 
-// WithOnEnterFunc はEnter押下時に実行するコマンド生成関数を設定する。
+// WithDrillDownFunc はEnter押下時にドリルダウン遷移するコマンド生成関数を設定する。
 // nilを返した場合はドリルダウン遷移しない。
-func WithOnEnterFunc(fn func() tea.Cmd) SelectFieldOption {
+func WithDrillDownFunc(fn func() tea.Cmd) SelectFieldOption {
 	return func(f *SelectField) { f.onDrillDownFn = fn }
 }
 
@@ -391,14 +391,14 @@ func NewConfirmField(title, description string, value *bool, opts ...ConfirmFiel
 }
 
 func (f *ConfirmField) labels() (string, string) {
-	yes, no := "Yes", "No"
+	trueText, falseText := "Yes", "No"
 	if f.trueLabel != "" {
-		yes = f.trueLabel
+		trueText = f.trueLabel
 	}
 	if f.falseLabel != "" {
-		no = f.falseLabel
+		falseText = f.falseLabel
 	}
-	return yes, no
+	return trueText, falseText
 }
 
 func (f *ConfirmField) Update(msg tea.Msg) (Field, tea.Cmd) {
@@ -457,17 +457,17 @@ func (f *ConfirmField) renderView(focused bool) string {
 	}
 
 	// ラベル
-	yes, no := f.labels()
+	trueText, falseText := f.labels()
 	if *f.value {
-		yes = activeStyle.Render(yes)
-		no = inactiveStyle.Render(no)
+		trueText = activeStyle.Render(trueText)
+		falseText = inactiveStyle.Render(falseText)
 	} else {
-		yes = inactiveStyle.Render(yes)
-		no = activeStyle.Render(no)
+		trueText = inactiveStyle.Render(trueText)
+		falseText = activeStyle.Render(falseText)
 	}
-	left, right := yes, no
+	left, right := trueText, falseText
 	if f.reverseOrder {
-		left, right = no, yes
+		left, right = falseText, trueText
 	}
 	if f.buttonStyle {
 		fmt.Fprintf(&b, "%s  %s", left, right)

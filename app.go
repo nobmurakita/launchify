@@ -120,7 +120,7 @@ func (m appModel) submitForm() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.state.directInstall {
+	if m.state.skipPreview {
 		m.result = appResultInstall
 		return m, tea.Quit
 	}
@@ -156,14 +156,14 @@ func (m appModel) updateDetail(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m appModel) updatePreview(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if pm, ok := msg.(previewDoneMsg); ok {
 		switch pm.result {
-		case resultInstall:
+		case previewResultInstall:
 			m.result = appResultInstall
 			return m, tea.Quit
-		case resultBack:
+		case previewResultBack:
 			m.phase = phaseForm
 			cmd := m.form.rebuildAndFocus()
 			return m, cmd
-		case resultQuit:
+		case previewResultQuit:
 			m.result = appResultQuit
 			return m, tea.Quit
 		}

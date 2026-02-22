@@ -13,9 +13,9 @@ import (
 type previewResult int
 
 const (
-	resultInstall previewResult = iota // インストール実行
-	resultBack                         // フォームに戻る
-	resultQuit                         // 終了
+	previewResultInstall previewResult = iota // インストール実行
+	previewResultBack                         // フォームに戻る
+	previewResultQuit                         // 終了
 )
 
 // previewDoneMsg はプレビュー画面の操作結果を通知するメッセージ
@@ -62,14 +62,14 @@ func (m previewModel) Update(msg tea.Msg) (previewModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			return m, func() tea.Msg { return previewDoneMsg{result: resultInstall} }
+			return m, func() tea.Msg { return previewDoneMsg{result: previewResultInstall} }
 		case tea.KeyEscape, tea.KeyShiftTab:
-			return m, func() tea.Msg { return previewDoneMsg{result: resultBack} }
+			return m, func() tea.Msg { return previewDoneMsg{result: previewResultBack} }
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyRunes:
 			if string(msg.Runes) == "q" {
-				return m, func() tea.Msg { return previewDoneMsg{result: resultQuit} }
+				return m, func() tea.Msg { return previewDoneMsg{result: previewResultQuit} }
 			}
 		}
 	}
