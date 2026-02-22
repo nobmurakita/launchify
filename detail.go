@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -316,14 +317,9 @@ func (m detailModel) renderDetailField(f textinput.Model, label string, focused 
 		b.WriteString("\n")
 		b.WriteString(f.View())
 	} else {
-		val := f.Value()
+		val := cmp.Or(f.Value(), f.Placeholder, "-")
 		style := blurredValueStyle
-		if val == "" {
-			val = f.Placeholder
-			style = blurredMutedStyle
-		}
-		if val == "" {
-			val = "-"
+		if val != f.Value() {
 			style = blurredMutedStyle
 		}
 		b.WriteString(blurredTitleStyle.Render(label))
