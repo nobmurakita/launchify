@@ -281,6 +281,32 @@ func TestGeneratePlist_WithEnvVars(t *testing.T) {
 	mustContain(t, plist, "<string>/Users/test</string>")
 }
 
+func TestGeneratePlist_EnvVarsSorted(t *testing.T) {
+	c := Config{
+		Label:   "com.user.test",
+		Program: "/usr/local/bin/test",
+		EnvironmentVars: map[string]string{
+			"ZEBRA": "z",
+			"APPLE": "a",
+			"MANGO": "m",
+		},
+	}
+	plist, err := GeneratePlist(&c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// キーがアルファベット順に並ぶことを確認
+	appleIdx := strings.Index(plist, "<key>APPLE</key>")
+	mangoIdx := strings.Index(plist, "<key>MANGO</key>")
+	zebraIdx := strings.Index(plist, "<key>ZEBRA</key>")
+	if appleIdx < 0 || mangoIdx < 0 || zebraIdx < 0 {
+		t.Fatalf("missing env vars in plist:\n%s", plist)
+	}
+	if !(appleIdx < mangoIdx && mangoIdx < zebraIdx) {
+		t.Errorf("env vars not sorted: APPLE=%d, MANGO=%d, ZEBRA=%d", appleIdx, mangoIdx, zebraIdx)
+	}
+}
+
 func mustContain(t *testing.T, s, substr string) {
 	t.Helper()
 	if !strings.Contains(s, substr) {

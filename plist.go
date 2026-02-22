@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"sort"
 	"text/template"
 
 	"github.com/google/shlex"
@@ -84,9 +85,9 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 
 	<key>EnvironmentVariables</key>
 	<dict>
-{{- range $key, $val := .EnvironmentVars}}
-		<key>{{$key | xmlEscape}}</key>
-		<string>{{$val | xmlEscape}}</string>
+{{- range .EnvironmentVars}}
+		<key>{{.Key | xmlEscape}}</key>
+		<string>{{.Value | xmlEscape}}</string>
 {{- end}}
 	</dict>
 {{- end}}
@@ -104,6 +105,12 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 `
 
+// envVar は環境変数のキー・値ペア（ソート済み出力用）
+type envVar struct {
+	Key   string
+	Value string
+}
+
 // plistData はテンプレートに渡すデータ
 type plistData struct {
 	Label            string
@@ -114,7 +121,7 @@ type plistData struct {
 	KeepAlive        KeepAliveType
 	StartInterval    int
 	CalendarInterval *CalendarInterval
-	EnvironmentVars  map[string]string
+	EnvironmentVars  []envVar
 	StandardOutPath   string
 	StandardErrorPath string
 }
@@ -150,7 +157,16 @@ func buildPlistData(c *Config) plistData {
 	}
 
 	if len(c.EnvironmentVars) > 0 {
-		data.EnvironmentVars = c.EnvironmentVars
+		keys := make([]string, 0, len(c.EnvironmentVars))
+		for k := range c.EnvironmentVars {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		vars := make([]envVar, len(keys))
+		for i, k := range keys {
+			vars[i] = envVar{Key: k, Value: c.EnvironmentVars[k]}
+		}
+		data.EnvironmentVars = vars
 	}
 
 	return data
