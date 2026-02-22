@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/shlex"
 )
 
 // appPhase はアプリケーションの画面状態を表す
@@ -210,11 +211,11 @@ func RunApp() (*Config, string, error) {
 // resolveProgram はコマンド文字列の先頭プログラム名をフルパスに解決する。
 // 既にフルパス（/で始まる）場合はそのまま返す。
 func resolveProgram(program string) (string, error) {
-	parts := strings.Fields(program)
-	if len(parts) == 0 {
+	args, err := shlex.Split(program)
+	if err != nil || len(args) == 0 {
 		return program, nil
 	}
-	cmd := parts[0]
+	cmd := args[0]
 	if strings.HasPrefix(cmd, "/") {
 		return program, nil
 	}
@@ -222,6 +223,7 @@ func resolveProgram(program string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("コマンド %q が見つかりません: %w", cmd, err)
 	}
-	parts[0] = resolved
-	return strings.Join(parts, " "), nil
+	// 元の文字列のコマンド部分のみを置換（引数のクォート構造を保持）
+	idx := strings.Index(program, cmd)
+	return resolved + program[idx+len(cmd):], nil
 }
