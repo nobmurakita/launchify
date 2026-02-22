@@ -414,26 +414,6 @@ func (m formModel) absoluteIndex(visibleIdx int) int {
 	return len(m.fields) - 1
 }
 
-// CollectValues はフィールドの値をConfig/formStateに書き戻す
-func (m formModel) CollectValues() {
-	for _, f := range m.fields {
-		if tf, ok := f.(*TextInputField); ok {
-			switch tf.title {
-			case "Program":
-				m.config.Program = tf.Value()
-			case "Label":
-				m.config.Label = tf.Value()
-			case "WorkingDirectory":
-				m.config.WorkingDirectory = tf.Value()
-			case "StandardOutPath":
-				m.config.StdoutPath = tf.Value()
-			case "StandardErrorPath":
-				m.config.StderrPath = tf.Value()
-			}
-		}
-	}
-}
-
 // ---------- ユーティリティ関数 ----------
 
 // scheduleOptionDetail はスケジュールオプションの詳細文字列を返す。
